@@ -4,6 +4,7 @@ import { StatCard } from '../components/StatCard';
 import { ParkingSpaceGrid } from '../components/ParkingSpaceGrid';
 import { VehicleList } from '../components/VehicleList';
 import { RecentActivity } from '../components/RecentActivity';
+import { VoiceControlPanel } from '../components/VoiceControlPanel';
 import { Car, ParkingCircle, Clock } from 'lucide-react';
 
 // Datos simulados para pruebas (mismos que antes en App.jsx)
@@ -101,7 +102,6 @@ export default function HomePage() {
               <p className="text-sm text-gray-600">Sistema Inteligente de Gestión de Parqueaderos</p>
             </div>
           </div>
-
           <div className="flex items-center space-x-2 bg-green-50 px-4 py-2 rounded-lg">
             <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
             <span className="text-sm font-medium text-green-700">Sistema Activo</span>
@@ -119,17 +119,20 @@ export default function HomePage() {
           <StatCard title="Vehículos Activos" value={stats.activeVehicles} icon={Clock} subtitle="En el parqueadero" />
         </div>
 
-        {/* Cuadros principales */}
+        {/* Cuadros principales: grid con columna única (izquierda) y columna de paneles (derecha) */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+          {/* Columna principal */}
           <div className="lg:col-span-2">
             <ParkingSpaceGrid spaces={parkingSpaces} />
           </div>
-          <div>
+          {/* Panel derecho: Actividad reciente y debajo el control de voz */}
+          <div className="flex flex-col space-y-6">
             <RecentActivity events={events} />
+            <VoiceControlPanel lastCommand={events.find(e => e.event_type === 'voice_command')?.event_data?.description ?? ''} />
           </div>
         </div>
 
-        {/* Lista de vehículos */}
+        {/* Lista de vehículos activa */}
         <VehicleList vehicles={vehicles} />
       </main>
     </div>
