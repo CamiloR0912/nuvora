@@ -1,0 +1,73 @@
+version: '3.7'
+
+services:
+  backend:
+    build: ./backend
+    container_name: smartpark-backend
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_started
+    networks:
+      - smartnet
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.backend.rule=Host(`backend.local`) && PathPrefix(`/api`)"
+      - "traefik.http.routers.backend.entrypoints=web"
+      - "traefik.http.services.backend.loadbalancer.server.port=8000"
+      - "traefik.http.middlewares.backend-strip-prefix.stripprefix.prefixes=/api"
+      - "traefik.http.routers.backend.middlewares=backend-strip-prefix"
+
+
+
+  db:
+    image: mysql:8
+    container_name: smartpark-db
+    environment:
+      MYSQL_ROOT_PASSWORD: 12345679
+      MYSQL_DATABASE: test3
+    ports:
+      - "3306:3306"
+    volumes:
+      - db_data:/var/lib/mysql
+    networks:
+      - smartnet
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p12345679"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: smartpark-rabbit
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    networks:
+      - smartnet
+
+  traefik:
+    image: traefik:v2.5
+    container_name: traefik
+    command:
+      - "--api.insecure=true"
+      - "--providers.docker=true"
+      - "--entrypoints.web.address=:80"
+    ports:
+      - "80:80"
+      - "8080:8080" # Traefik dashboard
+    networks:
+      - smartnet
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock"
+
+networks:
+  smartnet:
+
+volumes:
+  db_data:
