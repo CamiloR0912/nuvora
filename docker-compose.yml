@@ -1,8 +1,6 @@
-version: '3.7'
-
 services:
   backend:
-    build: ./backend
+    build: ./nuvora-backend
     container_name: smartpark-backend
     ports:
       - "8000:8000"
@@ -15,13 +13,28 @@ services:
       - smartnet
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.backend.rule=Host(`backend.local`) && PathPrefix(`/api`)"
+      - "traefik.http.routers.backend.rule=Host(`nuvora`) && PathPrefix(`/api`)"
       - "traefik.http.routers.backend.entrypoints=web"
       - "traefik.http.services.backend.loadbalancer.server.port=8000"
       - "traefik.http.middlewares.backend-strip-prefix.stripprefix.prefixes=/api"
       - "traefik.http.routers.backend.middlewares=backend-strip-prefix"
 
-
+  frontend:
+    build: ./nuvora-frontend
+    container_name: smartpark-frontend
+    ports:
+      - "5173:5173"
+    networks:
+      - smartnet
+    volumes:
+      - ./nuvora-frontend:/app
+      - /app/node_modules
+    command: npm run dev -- --host 0.0.0.0
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.frontend.rule=Host(`nuvora`)"
+      - "traefik.http.routers.frontend.entrypoints=web"
+      - "traefik.http.services.frontend.loadbalancer.server.port=5173"
 
   db:
     image: mysql:8
@@ -60,11 +73,11 @@ services:
       - "--entrypoints.web.address=:80"
     ports:
       - "80:80"
-      - "8080:8080" # Traefik dashboard
+      - "8080:8080"
     networks:
       - smartnet
     volumes:
-      - "/var/run/docker.sock:/var/run/docker.sock"
+      - "/var/run/docker.sock:/var/run/docker.sock:ro"
 
 networks:
   smartnet:
