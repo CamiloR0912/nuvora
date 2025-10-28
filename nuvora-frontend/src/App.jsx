@@ -2,6 +2,9 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import LoginPage from './pages/LoginPage';
 import HomePage from './pages/HomePage';
 import Detection from './pages/Detection';
+import VehiculosPage from './pages/VehiculosPage';
+import ActividadPage from './pages/ActividadPage';
+import BaseDatosPage from './pages/BaseDatosPage';
 import DashboardLayout from './layouts/DashboardLayout';
 
 function App() {
@@ -13,8 +16,11 @@ function App() {
 
         {/* Dashboard con Sidebar */}
         <Route path="/dashboard" element={<DashboardLayout />}>
-          <Route index element={<HomePage />} /> {/* Página principal */}
-          <Route path="detection" element={<Detection />} /> {/* Página de detección */}
+          <Route index element={<HomePage />} />
+          <Route path="detection" element={<Detection />} />
+          <Route path="vehiculos" element={<VehiculosPage />} />
+          <Route path="actividad" element={<ActividadPage />} />
+          <Route path="bd" element={<BaseDatosPage />} /> {/* Nueva ruta */}
         </Route>
 
         {/* Redirección por defecto */}

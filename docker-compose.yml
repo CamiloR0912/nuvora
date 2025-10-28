@@ -13,7 +13,7 @@ services:
       - smartnet
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.backend.rule=Host(`nuvora`) && PathPrefix(`/api`)"
+      - "traefik.http.routers.backend.rule=Host(`nuvora) && PathPrefix(`/api`)"
       - "traefik.http.routers.backend.entrypoints=web"
       - "traefik.http.services.backend.loadbalancer.server.port=8000"
       - "traefik.http.middlewares.backend-strip-prefix.stripprefix.prefixes=/api"

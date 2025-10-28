@@ -6,9 +6,9 @@ import { NavLink } from 'react-router-dom';
 const navItems = [
   { label: "Dashboard", path: "/dashboard", icon: LayoutDashboard },
   { label: "Detección en Vivo", path: "/dashboard/detection", icon: Camera },
-  { label: "Vehículos", path: "/vehiculos", icon: Car },
-  { label: "Actividad", path: "/actividad", icon: Activity },
-  { label: "Base de Datos", path: "/bd", icon: Database },
+  { label: "Vehículos", path: "/dashboard/vehiculos", icon: Car },
+  { label: "Actividad", path: "/dashboard/actividad", icon: Activity },
+  { label: "Base de Datos", path: "/dashboard/bd", icon: Database },
 ];
 
 export default function Sidebar() {
