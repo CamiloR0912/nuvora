@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-import '../index.css';
 import { StatCard } from '../components/StatCard';
 import { ParkingSpaceGrid } from '../components/ParkingSpaceGrid';
 import { VehicleList } from '../components/VehicleList';
@@ -7,7 +6,7 @@ import { RecentActivity } from '../components/RecentActivity';
 import { VoiceControlPanel } from '../components/VoiceControlPanel';
 import { Car, ParkingCircle, Clock } from 'lucide-react';
 
-// Datos simulados para pruebas (mismos que antes en App.jsx)
+// Datos simulados de ejemplo
 const mockParkingSpaces = [
   { id: 1, floor: 1, zone: 'A', space_number: 'A1', is_occupied: false },
   { id: 2, floor: 1, zone: 'A', space_number: 'A2', is_occupied: true },
@@ -59,7 +58,7 @@ export default function HomePage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Simula una carga inicial
+    // Simula carga inicial
     const timer = setTimeout(() => {
       setParkingSpaces(mockParkingSpaces);
       setVehicles(mockVehicles);
@@ -79,7 +78,7 @@ export default function HomePage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 flex items-center justify-center">
+      <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">
           <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-600 mx-auto mb-4"></div>
           <p className="text-gray-600 font-medium">Cargando Nuvora...</p>
@@ -89,52 +88,28 @@ export default function HomePage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
-      {/* Encabezado */}
-      <header className="bg-white border-b border-gray-200 shadow-sm">
-        <div className="max-w-7xl mx-auto px-6 py-6 flex justify-between items-center">
-          <div className="flex items-center space-x-3">
-            <div className="bg-blue-600 p-3 rounded-xl">
-              <ParkingCircle className="w-8 h-8 text-white" />
-            </div>
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900">Nuvora</h1>
-              <p className="text-sm text-gray-600">Sistema Inteligente de Gestión de Parqueaderos</p>
-            </div>
-          </div>
-          <div className="flex items-center space-x-2 bg-green-50 px-4 py-2 rounded-lg">
-            <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-            <span className="text-sm font-medium text-green-700">Sistema Activo</span>
-          </div>
-        </div>
-      </header>
+    <div>
+      {/* Tarjetas de estadísticas principales */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        <StatCard title="Total de Cupos" value={stats.totalSpaces} icon={ParkingCircle} subtitle="Capacidad total" />
+        <StatCard title="Cupos Ocupados" value={stats.occupiedSpaces} icon={Car} subtitle={`${Math.round((stats.occupiedSpaces / stats.totalSpaces) * 100)}% ocupación`} />
+        <StatCard title="Cupos Disponibles" value={stats.availableSpaces} icon={ParkingCircle} subtitle="Listos para usar" />
+        <StatCard title="Vehículos Activos" value={stats.activeVehicles} icon={Clock} subtitle="En el parqueadero" />
+      </div>
 
-      {/* Contenido principal */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Tarjetas de estadísticas */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          <StatCard title="Total de Cupos" value={stats.totalSpaces} icon={ParkingCircle} subtitle="Capacidad total" />
-          <StatCard title="Cupos Ocupados" value={stats.occupiedSpaces} icon={Car} subtitle={`${Math.round((stats.occupiedSpaces / stats.totalSpaces) * 100)}% ocupación`} />
-          <StatCard title="Cupos Disponibles" value={stats.availableSpaces} icon={ParkingCircle} subtitle="Listos para usar" />
-          <StatCard title="Vehículos Activos" value={stats.activeVehicles} icon={Clock} subtitle="En el parqueadero" />
+      {/* Estado de cupos y panel derecho */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+        <div className="lg:col-span-2">
+          <ParkingSpaceGrid spaces={parkingSpaces} />
         </div>
-
-        {/* Cuadros principales: grid con columna única (izquierda) y columna de paneles (derecha) */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-          {/* Columna principal */}
-          <div className="lg:col-span-2">
-            <ParkingSpaceGrid spaces={parkingSpaces} />
-          </div>
-          {/* Panel derecho: Actividad reciente y debajo el control de voz */}
-          <div className="flex flex-col space-y-6">
-            <RecentActivity events={events} />
-            <VoiceControlPanel lastCommand={events.find(e => e.event_type === 'voice_command')?.event_data?.description ?? ''} />
-          </div>
+        <div className="flex flex-col space-y-6">
+          <RecentActivity events={events} />
+          <VoiceControlPanel lastCommand={events.find(e => e.event_type === 'voice_command')?.event_data?.description ?? ''} />
         </div>
+      </div>
 
-        {/* Lista de vehículos activa */}
-        <VehicleList vehicles={vehicles} />
-      </main>
+      {/* Lista de vehículos activos */}
+      <VehicleList vehicles={vehicles} />
     </div>
   );
 }
