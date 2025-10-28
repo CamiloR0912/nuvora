@@ -3,10 +3,10 @@ import { StatCard } from '../components/StatCard';
 import { ParkingSpaceGrid } from '../components/ParkingSpaceGrid';
 import { VehicleList } from '../components/VehicleList';
 import { RecentActivity } from '../components/RecentActivity';
-import { VoiceControlPanel } from '../components/VoiceControlPanel';
-import { Car, ParkingCircle, Clock } from 'lucide-react';
+import { Car, ParkingCircle, Clock, Mic } from 'lucide-react';
+import axios from 'axios';
 
-// Datos simulados de ejemplo
+// Simulación de cupos (sigue igual, puedes cambiar por tu backend real luego)
 const mockParkingSpaces = [
   { id: 1, floor: 1, zone: 'A', space_number: 'A1', is_occupied: false },
   { id: 2, floor: 1, zone: 'A', space_number: 'A2', is_occupied: true },
@@ -15,41 +15,35 @@ const mockParkingSpaces = [
   { id: 5, floor: 2, zone: 'C', space_number: 'C2', is_occupied: false },
 ];
 
-const mockVehicles = [
-  {
-    id: 1,
-    license_plate: 'ABC123',
-    entry_time: new Date(Date.now() - 1000 * 60 * 45), // hace 45 min
-    parking_spaces: { space_number: 'A2' },
-  },
-  {
-    id: 2,
-    license_plate: 'XYZ987',
-    entry_time: new Date(Date.now() - 1000 * 60 * 120), // hace 2h
-    parking_spaces: { space_number: 'C1' },
-  },
-];
-
-const mockEvents = [
-  {
-    id: 1,
-    event_type: 'entry',
-    event_data: { description: 'Vehículo ABC123 ingresó al parqueadero' },
-    created_at: new Date(Date.now() - 1000 * 60 * 5), // hace 5 min
-  },
-  {
-    id: 2,
-    event_type: 'exit',
-    event_data: { description: 'Vehículo KLM456 salió del parqueadero' },
-    created_at: new Date(Date.now() - 1000 * 60 * 30),
-  },
-  {
-    id: 3,
-    event_type: 'voice_command',
-    event_data: { description: 'Comando de voz ejecutado: “Mostrar ocupación nivel 2”' },
-    created_at: new Date(Date.now() - 1000 * 60 * 60),
-  },
-];
+// Componente de panel de voz estilizado
+function VoiceControlPanel({ lastCommand }) {
+  return (
+    <div className="bg-white rounded-xl shadow p-6 mb-6">
+      <h3 className="text-lg font-bold mb-4 text-gray-900">Control por Voz</h3>
+      <div className="flex flex-col items-center justify-center mb-4">
+        <button className="rounded-full bg-blue-100 p-6 hover:bg-blue-200 transition">
+          <Mic className="w-8 h-8 text-blue-600" />
+        </button>
+        <span className="text-sm text-gray-500 mt-2">Toca para hablar</span>
+      </div>
+      <div className="mb-3">
+        <span className="block text-xs text-gray-400">Último comando:</span>
+        <span className="block font-medium text-gray-700 text-sm min-h-[20px]">
+          {lastCommand || '—'}
+        </span>
+      </div>
+      <div>
+        <span className="block font-semibold text-sm mb-1 text-slate-600">Comandos disponibles:</span>
+        <ul className="list-disc pl-5 text-xs text-gray-500 space-y-1">
+          <li>¿Cuántos carros hay?</li>
+          <li>Mostrar cupos disponibles</li>
+          <li>Buscar placa ABC-123</li>
+          <li>Estadísticas del día</li>
+        </ul>
+      </div>
+    </div>
+  );
+}
 
 export default function HomePage() {
   const [parkingSpaces, setParkingSpaces] = useState([]);
@@ -58,15 +52,58 @@ export default function HomePage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Simula carga inicial
-    const timer = setTimeout(() => {
-      setParkingSpaces(mockParkingSpaces);
-      setVehicles(mockVehicles);
-      setEvents(mockEvents);
-      setLoading(false);
-    }, 1000);
+    // Cargar cupos simulados y datos reales de vehículos/eventos
+    Promise.all([
+      Promise.resolve(mockParkingSpaces),
+      axios.get('/api/vehiculos/activos'),
+      axios.get('/api/vehiculos/historial')
+    ])
+      .then(([mockSpaces, activosRes, historialRes]) => {
+        setParkingSpaces(mockSpaces);
 
-    return () => clearTimeout(timer);
+        // Mapea vehículos activos según API real
+        setVehicles(
+          activosRes.data.map(v => ({
+            id: v.id,
+            license_plate: v.placa,
+            entry_time: new Date(v.fecha_entrada),
+            parking_spaces: { space_number: v.espacio || 'Desconocido' }
+          }))
+        );
+
+        // Entradas
+        const entradas = activosRes.data.map(v => ({
+          id: `entrada-${v.id}`,
+          event_type: 'entry',
+          event_data: {
+            description: `Vehículo ${v.placa} ingresó al parqueadero`
+          },
+          created_at: v.fecha_entrada
+        }));
+
+        // Salidas
+        const salidas = historialRes.data.map(v => ({
+          id: `salida-${v.id}`,
+          event_type: 'exit',
+          event_data: {
+            description: `Vehículo ${v.placa} salió del parqueadero`
+          },
+          created_at: v.fecha_salida
+        }));
+
+        // Combinar y mostrar solo las 3 actividades más recientes
+        const ambos = [...entradas, ...salidas]
+          .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+          .slice(0, 3);
+
+        setEvents(ambos);
+        setLoading(false);
+      })
+      .catch(() => {
+        setVehicles([]);
+        setEvents([]);
+        setLoading(false);
+      });
   }, []);
 
   const stats = {
@@ -108,7 +145,7 @@ export default function HomePage() {
         </div>
       </div>
 
-      {/* Lista de vehículos activos */}
+      {/* Vehículos activos del backend */}
       <VehicleList vehicles={vehicles} />
     </div>
   );

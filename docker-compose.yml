@@ -12,12 +12,12 @@ services:
     networks:
       - smartnet
     labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.backend.rule=Host(`nuvora`) && PathPrefix(`/api`)"
-      - "traefik.http.routers.backend.entrypoints=web"
+      - "traefik.http.routers.backend-nuvora.rule=Host(`nuvora`) && PathPrefix(`/api`)"
+      - "traefik.http.routers.backend-nuvora.entrypoints=web"
       - "traefik.http.services.backend.loadbalancer.server.port=8000"
       - "traefik.http.middlewares.backend-strip-prefix.stripprefix.prefixes=/api"
-      - "traefik.http.routers.backend.middlewares=backend-strip-prefix"
+      - "traefik.http.routers.backend-nuvora.middlewares=backend-strip-prefix"
+
 
   frontend:
     build: ./nuvora-frontend
