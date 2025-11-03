@@ -2,6 +2,7 @@ from sqlalchemy import Column, Integer, String, DateTime, Float, JSON
 from config.db import Base
 from datetime import datetime
 
+
 class VehiculoActivo(Base):
     __tablename__ = "vehiculos_activos"
 
@@ -30,4 +31,4 @@ class Vehicle(Base):
     timestamp = Column(DateTime, nullable=False)  # momento de la detección
     location = Column(JSON, nullable=True)  # coordenadas del vehículo en el frame
     plate_number = Column(String(20), nullable=True)  # placa detectada por OCR
-    created_at = Column(DateTime, default=datetime.now, nullable=False) 
+    created_at = Column(DateTime, default=datetime.now, nullable=False)

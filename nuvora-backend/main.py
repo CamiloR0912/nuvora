@@ -1,9 +1,20 @@
 from fastapi import FastAPI
 from router.user_router import user
+from router.turno_router import turno_router
+from router.ticket_router import ticket_router
+from router.client_router import client_router
 from router.vehicle_router import vehiculo
 from config.db import Base, engine
 from threading import Thread
 from consumer import VehicleEventConsumer
+# Importar modelos para registrar tablas en metadata
+import model.users
+import model.clientes
+import model.vehiculos
+import model.turnos
+import model.tickets
+import model.cierres
+import model.vehicles
 import logging
 
 logging.basicConfig(level=logging.INFO)
@@ -14,7 +25,9 @@ app = FastAPI(title="SmartPark API", redirect_slashes=False)
 Base.metadata.create_all(bind=engine)
 
 app.include_router(user)
-app.include_router(vehiculo)
+app.include_router(turno_router)
+app.include_router(ticket_router)
+app.include_router(client_router)
 
 def start_rabbitmq_consumer():
     """Inicia el consumidor de RabbitMQ en un thread separado"""

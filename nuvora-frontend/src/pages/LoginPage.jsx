@@ -1,6 +1,26 @@
 import { ParkingCircle } from 'lucide-react';
 
 export default function LoginPage() {
+  async function handleSubmit(e) {
+    e.preventDefault();
+    const form = new FormData(e.currentTarget);
+    const username = form.get("email");      // ajusta nombres si cambian
+    const password = form.get("password");
+
+    const res = await fetch("/api/users/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username, password }),
+    });
+    if (!res.ok) {
+      // manejo de error
+      return;
+    }
+    const data = await res.json();
+    localStorage.setItem("token", data.access_token);
+    // redirigir a /dashboard
+  }
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-blue-100">
       <div className="bg-white p-8 rounded-xl shadow-md w-full max-w-md">
@@ -12,7 +32,7 @@ export default function LoginPage() {
         <h2 className="text-2xl font-bold text-center text-gray-900 mb-6">
           Iniciar Sesión
         </h2>
-        <form className="space-y-5">
+        <form className="space-y-5" onSubmit={handleSubmit}>
           <input
             type="email"
             placeholder="Correo electrónico"

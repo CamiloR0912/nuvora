@@ -2,13 +2,16 @@ from pydantic import BaseModel
 from datetime import datetime
 from typing import Optional
 
+
 class VehiculoEntrada(BaseModel):
     placa: str
     fecha_entrada: Optional[datetime] = None
 
+
 class VehiculoSalida(BaseModel):
     placa: str
     fecha_salida: datetime
+
 
 class VehiculoActivoResponse(BaseModel):
     id: int
@@ -17,6 +20,7 @@ class VehiculoActivoResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
 
 class VehiculoHistorialResponse(BaseModel):
     id: int
@@ -27,6 +31,3 @@ class VehiculoHistorialResponse(BaseModel):
 
     class Config:
         from_attributes = True
-
-class Config:
-    from_attributes = True  
