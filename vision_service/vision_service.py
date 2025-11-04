@@ -220,7 +220,7 @@ def detect_vehicles_and_plates(frame):
     return frame
 
 try:
-    cap = cv2.VideoCapture(0)
+    cap = cv2.VideoCapture("http://localhost:8001/cameras/entrada/stream")
     logger.info("🎥 Iniciando captura de video...")
 
     while True:

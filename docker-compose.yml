@@ -24,6 +24,21 @@ services:
       - "traefik.http.middlewares.backend-strip-prefix.stripprefix.prefixes=/api"
       - "traefik.http.routers.backend-nuvora.middlewares=backend-strip-prefix"
 
+  # vision_service:
+  #   build: ./vision_service
+  #   container_name: smartpark-vision
+  #   environment:
+  #     - STREAM_URL=http://streamservice:8000/cameras/entrada/stream
+  #     - RABBITMQ_HOST=rabbitmq
+  #     - RABBITMQ_PORT=5672
+  #     - RABBITMQ_USER=admin
+  #     - RABBITMQ_PASS=admin
+  #   depends_on:
+  #     rabbitmq:
+  #       condition: service_healthy
+  #   networks:
+  #     - smartnet
+  #   restart: on-failure
 
   frontend:
     build: ./nuvora-frontend
@@ -72,6 +87,12 @@ services:
       - rabbitmq_data:/var/lib/rabbitmq
     networks:
       - smartnet
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "check_port_connectivity"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
 
   traefik:
     image: traefik:v2.5
