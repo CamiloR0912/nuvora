@@ -5,7 +5,7 @@ export default function Detection() {
   const ultimaDeteccion = "ABC123";
   const horaUltima = "20:55:14";
   // Puedes reemplazar esta imagen/stream por un <video> en tiempo real en el futuro
-  const placeholderImg = "https://placehold.co/480x320?text=Video+en+vivo";
+  const placeholderImg = "http://localhost:8001/cameras/entrada/stream";
 
   return (
     <div className="max-w-4xl mx-auto py-10">
