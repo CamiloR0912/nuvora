@@ -3,6 +3,7 @@ import { StatCard } from '../components/StatCard';
 import { ParkingSpaceGrid } from '../components/ParkingSpaceGrid';
 import { VehicleList } from '../components/VehicleList';
 import { RecentActivity } from '../components/RecentActivity';
+import Detection from '../components/Detection';
 import { Car, ParkingCircle, Clock, Mic } from 'lucide-react';
 import axios from 'axios';
 
@@ -134,18 +135,16 @@ export default function HomePage() {
         <StatCard title="Vehículos Activos" value={stats.activeVehicles} icon={Clock} subtitle="En el parqueadero" />
       </div>
 
-      {/* Estado de cupos y panel derecho */}
+      {/* Aquí va el Detection, ocupa todo el ancho izquierdo del grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
         <div className="lg:col-span-2">
-          <ParkingSpaceGrid spaces={parkingSpaces} />
+          <Detection />
         </div>
         <div className="flex flex-col space-y-6">
           <RecentActivity events={events} />
           <VoiceControlPanel lastCommand={events.find(e => e.event_type === 'voice_command')?.event_data?.description ?? ''} />
         </div>
       </div>
-
-      {/* Vehículos activos del backend */}
       <VehicleList vehicles={vehicles} />
     </div>
   );
