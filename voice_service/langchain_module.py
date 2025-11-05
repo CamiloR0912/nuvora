@@ -8,8 +8,7 @@ logger = logging.getLogger(__name__)
 USE_LLM = False
 try:
     from langchain_ollama import OllamaLLM
-    from langchain.prompts import PromptTemplate
-    from langchain.chains import LLMChain
+    from langchain_core.prompts import PromptTemplate
     
     llm = OllamaLLM(model="llama3", base_url="http://ollama:11434")
     
