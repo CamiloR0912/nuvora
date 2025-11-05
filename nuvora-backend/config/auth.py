@@ -1,8 +1,8 @@
 import os
 from datetime import datetime, timedelta
-from typing import Optional
+from typing import Optional, Union
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, status, Header
 from fastapi.security import OAuth2PasswordBearer
 from jose import jwt, JWTError
 from sqlalchemy.orm import Session
@@ -14,6 +14,9 @@ from model.users import User
 SECRET_KEY = os.getenv("SECRET_KEY", "change-me-in-prod")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60
+
+# API Key para comunicación entre microservicios
+SERVICE_API_KEY = os.getenv("SERVICE_API_KEY", "dev-service-key-change-in-prod")
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/users/login")
 
@@ -79,3 +82,59 @@ def require_vigilante(current_user: User = Depends(get_current_user)) -> User:
             detail="Solo vigilantes y administradores pueden realizar esta acción"
         )
     return current_user
+
+
+# ========== AUTENTICACIÓN PARA MICROSERVICIOS ==========
+
+def verify_service_api_key(x_api_key: str = Header(...)) -> bool:
+    """
+    Verifica que la API Key del microservicio sea válida.
+    Se espera que el header X-API-Key contenga la clave correcta.
+    """
+    if x_api_key != SERVICE_API_KEY:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="API Key inválida para servicio interno"
+        )
+    return True
+
+
+def get_current_user_or_service(
+    token: Optional[str] = Depends(oauth2_scheme),
+    x_api_key: Optional[str] = Header(None),
+    db: Session = Depends(get_db)
+) -> Union[User, str]:
+    """
+    Permite autenticación dual: JWT de usuario o API Key de servicio.
+    Retorna el User si es JWT, o "service" si es API Key válida.
+    """
+    # Si viene API Key, validar servicio
+    if x_api_key:
+        if x_api_key == SERVICE_API_KEY:
+            return "service"  # Indicador de que es una llamada de servicio
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="API Key inválida"
+            )
+    
+    # Si no hay API Key, validar JWT de usuario
+    if token:
+        try:
+            payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+            user_id: Optional[int] = payload.get("sub")
+            if user_id is None:
+                raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED)
+            
+            user = db.query(User).filter(User.id == int(user_id)).first()
+            if user is None or user.activo is False:
+                raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED)
+            return user
+        except JWTError:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED)
+    
+    # Si no hay ninguno
+    raise HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Se requiere autenticación (JWT o API Key)"
+    )

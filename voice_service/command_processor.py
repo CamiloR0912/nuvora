@@ -1,13 +1,8 @@
-import requests
 import logging
-import os
 from typing import Dict, Any
+from http_client import backend_client
 
 logger = logging.getLogger(__name__)
-
-# URL del backend (ajustar según entorno)
-# Usa localhost cuando se ejecuta fuera de Docker, smartpark-backend dentro de Docker
-BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:8000")
 
 def process_command(text: str, intent: Dict[str, Any]) -> str:
     """
@@ -55,61 +50,55 @@ def process_command(text: str, intent: Dict[str, Any]) -> str:
         return f"Lo siento, hubo un error al procesar tu solicitud: {str(e)}"
 
 def get_active_vehicles_count() -> str:
-    """Obtiene el número de vehículos detectados"""
+    """Obtiene el número de vehículos activos"""
     try:
-        response = requests.get(f"{BACKEND_URL}/vehicle-events/count", timeout=5)
-        response.raise_for_status()
-        data = response.json()
-        count = data.get("count", 0)
+        activos = backend_client.get_vehiculos_activos()
+        if activos is None:
+            return "No pude conectarme con el sistema de parqueo."
+        
+        count = len(activos)
         
         if count == 0:
-            return "No se han detectado vehículos aún."
+            return "No hay vehículos en el parqueadero actualmente."
         elif count == 1:
-            return "Se ha detectado 1 vehículo."
+            return "Hay 1 vehículo en el parqueadero."
         else:
-            return f"Se han detectado {count} vehículos en total."
+            return f"Hay {count} vehículos en el parqueadero actualmente."
     
-    except requests.RequestException as e:
+    except Exception as e:
         logger.error(f"Error al obtener conteo de vehículos: {e}")
-        return "No pude obtener la información de vehículos detectados."
+        return "No pude obtener la información de vehículos activos."
 
 def search_vehicle_by_plate(plate: str) -> str:
-    """Busca un vehículo por placa en activos e historial"""
+    """Busca un vehículo por placa"""
     try:
-        # Buscar en activos primero
-        response_activos = requests.get(f"{BACKEND_URL}/vehiculos/activos", timeout=5)
-        response_activos.raise_for_status()
-        activos = response_activos.json()
+        vehiculo = backend_client.search_vehiculo_by_plate(plate)
         
-        for vehiculo in activos:
-            if vehiculo.get("placa", "").upper() == plate.upper():
-                fecha_entrada = vehiculo.get("fecha_entrada", "desconocida")
-                return f"La placa {plate} está activa. Ingresó el {fecha_entrada}."
+        if vehiculo is None:
+            return f"No encontré ningún vehículo con la placa {plate}."
         
-        # Si no está en activos, buscar en historial
-        response_historial = requests.get(f"{BACKEND_URL}/vehiculos/historial", timeout=5)
-        response_historial.raise_for_status()
-        historial = response_historial.json()
-        
-        for vehiculo in historial:
-            if vehiculo.get("placa", "").upper() == plate.upper():
-                entrada = vehiculo.get("fecha_entrada", "desconocida")
-                salida = vehiculo.get("fecha_salida", "desconocida")
-                total = vehiculo.get("total_facturado", 0)
-                return f"La placa {plate} ya salió. Ingresó el {entrada}, salió el {salida}. Total: ${total:,.0f}"
-        
-        return f"No encontré ningún vehículo con la placa {plate}."
+        # Verificar si está en activos (tiene fecha_entrada pero no fecha_salida)
+        if not vehiculo.get("fecha_salida"):
+            fecha_entrada = vehiculo.get("fecha_entrada", "desconocida")
+            return f"La placa {plate} está activa en el parqueadero. Ingresó el {fecha_entrada}."
+        else:
+            # Ya salió
+            entrada = vehiculo.get("fecha_entrada", "desconocida")
+            salida = vehiculo.get("fecha_salida", "desconocida")
+            total = vehiculo.get("total_facturado", 0)
+            return f"La placa {plate} ya salió. Ingresó el {entrada}, salió el {salida}. Total: ${total:,.0f}"
     
-    except requests.RequestException as e:
+    except Exception as e:
         logger.error(f"Error buscando placa {plate}: {e}")
         return f"No pude buscar la placa {plate}."
 
 def get_history_summary() -> str:
     """Obtiene un resumen del historial"""
     try:
-        response = requests.get(f"{BACKEND_URL}/vehiculos/historial", timeout=5)
-        response.raise_for_status()
-        historial = response.json()
+        historial = backend_client.get_vehiculos_historial()
+        if historial is None:
+            return "No pude obtener el historial."
+        
         count = len(historial)
         
         if count == 0:
@@ -119,21 +108,18 @@ def get_history_summary() -> str:
         
         return f"Hay {count} vehículos en el historial, con un total facturado de ${total_facturado:,.0f}."
     
-    except requests.RequestException as e:
+    except Exception as e:
         logger.error(f"Error obteniendo historial: {e}")
         return "No pude obtener el historial."
 
 def get_daily_statistics() -> str:
     """Obtiene estadísticas del día"""
     try:
-        activos_resp = requests.get(f"{BACKEND_URL}/vehiculos/activos", timeout=5)
-        historial_resp = requests.get(f"{BACKEND_URL}/vehiculos/historial", timeout=5)
+        activos = backend_client.get_vehiculos_activos()
+        historial = backend_client.get_vehiculos_historial()
         
-        activos_resp.raise_for_status()
-        historial_resp.raise_for_status()
-        
-        activos = activos_resp.json()
-        historial = historial_resp.json()
+        if activos is None or historial is None:
+            return "No pude obtener las estadísticas del día."
         
         total_activos = len(activos)
         total_historial = len(historial)
@@ -143,7 +129,7 @@ def get_daily_statistics() -> str:
                 f"{total_historial} han salido, "
                 f"recaudado ${total_facturado:,.0f}.")
     
-    except requests.RequestException as e:
+    except Exception as e:
         logger.error(f"Error obteniendo estadísticas: {e}")
         return "No pude obtener las estadísticas del día."
 
@@ -159,9 +145,7 @@ def get_entries_count() -> str:
 def get_last_detection() -> str:
     """Obtiene la última detección de vehículo"""
     try:
-        response = requests.get(f"{BACKEND_URL}/vehicle-events/recent?limit=1", timeout=5)
-        response.raise_for_status()
-        events = response.json()
+        events = backend_client.get_vehicle_events_recent(limit=1)
         
         if not events:
             return "No hay detecciones recientes."
@@ -173,6 +157,6 @@ def get_last_detection() -> str:
         
         return f"La última placa detectada fue {plate} en la cámara {camera}, a las {timestamp}."
     
-    except requests.RequestException as e:
+    except Exception as e:
         logger.error(f"Error obteniendo última detección: {e}")
         return "No pude obtener la última detección."

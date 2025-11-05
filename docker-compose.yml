@@ -15,6 +15,8 @@ services:
       RABBITMQ_PORT: 5672
       RABBITMQ_USER: admin
       RABBITMQ_PASS: admin
+      SECRET_KEY: "your-super-secret-jwt-key-change-in-prod"
+      SERVICE_API_KEY: "nuvora-service-key-2024-change-in-prod"
     networks:
       - smartnet
     labels:
@@ -39,6 +41,20 @@ services:
   #   networks:
   #     - smartnet
   #   restart: on-failure
+
+  voice_service:
+    build: ./voice_service
+    container_name: smartpark-voice
+    ports:
+      - "8003:8003"
+    environment:
+      BACKEND_URL: "http://smartpark-backend:8000"
+      SERVICE_API_KEY: "nuvora-service-key-2024-change-in-prod"
+    depends_on:
+      - backend
+    networks:
+      - smartnet
+    restart: on-failure
 
   frontend:
     build: ./nuvora-frontend
