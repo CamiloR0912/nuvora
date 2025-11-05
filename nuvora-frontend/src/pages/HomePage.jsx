@@ -5,6 +5,7 @@ import { VehicleList } from '../components/VehicleList';
 import { RecentActivity } from '../components/RecentActivity';
 import Detection from '../components/Detection';
 import { Car, ParkingCircle, Clock, Mic } from 'lucide-react';
+import { VoiceControlPanel } from '../components/VoiceControlPanel';
 import axios from 'axios';
 
 // Simulación de cupos (sigue igual, puedes cambiar por tu backend real luego)
@@ -16,35 +17,7 @@ const mockParkingSpaces = [
   { id: 5, floor: 2, zone: 'C', space_number: 'C2', is_occupied: false },
 ];
 
-// Componente de panel de voz estilizado
-function VoiceControlPanel({ lastCommand }) {
-  return (
-    <div className="bg-white rounded-xl shadow p-6 mb-6">
-      <h3 className="text-lg font-bold mb-4 text-gray-900">Control por Voz</h3>
-      <div className="flex flex-col items-center justify-center mb-4">
-        <button className="rounded-full bg-blue-100 p-6 hover:bg-blue-200 transition">
-          <Mic className="w-8 h-8 text-blue-600" />
-        </button>
-        <span className="text-sm text-gray-500 mt-2">Toca para hablar</span>
-      </div>
-      <div className="mb-3">
-        <span className="block text-xs text-gray-400">Último comando:</span>
-        <span className="block font-medium text-gray-700 text-sm min-h-[20px]">
-          {lastCommand || '—'}
-        </span>
-      </div>
-      <div>
-        <span className="block font-semibold text-sm mb-1 text-slate-600">Comandos disponibles:</span>
-        <ul className="list-disc pl-5 text-xs text-gray-500 space-y-1">
-          <li>¿Cuántos carros hay?</li>
-          <li>Mostrar cupos disponibles</li>
-          <li>Buscar placa ABC-123</li>
-          <li>Estadísticas del día</li>
-        </ul>
-      </div>
-    </div>
-  );
-}
+// Usamos el componente `VoiceControlPanel` real importado desde /components
 
 export default function HomePage() {
   const [parkingSpaces, setParkingSpaces] = useState([]);
