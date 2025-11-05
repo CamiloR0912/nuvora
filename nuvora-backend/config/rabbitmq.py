@@ -3,6 +3,7 @@ import os
 import json
 from typing import Callable
 import logging
+import time
 
 logger = logging.getLogger(__name__)
 
@@ -36,14 +37,23 @@ class RabbitMQConsumer:
         self.connection = None
         self.channel = None
         
-    def connect(self):
-        try:
-            self.connection = self.config.get_connection()
-            self.channel = self.config.create_channel(self.connection)
-            logger.info("Connected to RabbitMQ successfully")
-        except Exception as e:
-            logger.error(f"Failed to connect to RabbitMQ: {e}")
-            raise
+    def connect(self, max_retries=10, retry_delay=5):
+        """Connect to RabbitMQ with retry logic"""
+        for attempt in range(max_retries):
+            try:
+                logger.info(f"Attempting to connect to RabbitMQ (attempt {attempt + 1}/{max_retries})...")
+                self.connection = self.config.get_connection()
+                self.channel = self.config.create_channel(self.connection)
+                logger.info("✅ Connected to RabbitMQ successfully")
+                return
+            except Exception as e:
+                logger.warning(f"⚠️ Failed to connect to RabbitMQ (attempt {attempt + 1}/{max_retries}): {e}")
+                if attempt < max_retries - 1:
+                    logger.info(f"Retrying in {retry_delay} seconds...")
+                    time.sleep(retry_delay)
+                else:
+                    logger.error(f"❌ Failed to connect to RabbitMQ after {max_retries} attempts")
+                    raise
     
     def consume(self, callback: Callable):
         def on_message(ch, method, properties, body):

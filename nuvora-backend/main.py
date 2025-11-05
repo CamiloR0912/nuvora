@@ -3,7 +3,7 @@ from router.user_router import user
 from router.turno_router import turno_router
 from router.ticket_router import ticket_router
 from router.client_router import client_router
-from router.vehicle_router import vehiculo
+from router.vehicle_events_router import vehicle_events_router
 from config.db import Base, engine
 from threading import Thread
 from consumer import VehicleEventConsumer
@@ -28,6 +28,7 @@ app.include_router(user)
 app.include_router(turno_router)
 app.include_router(ticket_router)
 app.include_router(client_router)
+app.include_router(vehicle_events_router)
 
 def start_rabbitmq_consumer():
     """Inicia el consumidor de RabbitMQ en un thread separado"""
