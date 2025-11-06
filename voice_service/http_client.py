@@ -149,16 +149,13 @@ class BackendClient:
         """Busca clientes por nombre"""
         result = self._make_request("GET", "/clientes/search", params={"nombre": nombre})
         return result if result else []
-
-    def get_users(self) -> list:
+    
+    # ========== MÉTODOS PARA USUARIOS ==========
+    
+    def get_users(self) -> Optional[list]:
         """Obtiene todos los usuarios del sistema"""
-        try:
-            response = self.session.get(f"{self.base_url}/users/")
-            response.raise_for_status()
-            return response.json()
-        except requests.exceptions.RequestException as e:
-            logger.error(f"❌ Error obteniendo usuarios: {e}")
-            return None
+        result = self._make_request("GET", "/users/")
+        return result if result else []
 
 
 # Singleton para reutilizar en toda la aplicación
