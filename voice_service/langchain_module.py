@@ -68,6 +68,9 @@ def interpret_with_rules(user_input: str) -> Dict[str, Any]:
             return {"query_type": "entries_count"}
         return {"query_type": "total_cars"}
     
+    elif any(word in text for word in ["usuarios", "lista de usuarios", "mostrar usuarios", "consultar usuarios"]):
+        return {"query_type": "list_users"}
+    
     elif any(word in text for word in ["buscar", "busca", "encontrar", "placa"]):
         # Extraer placa (formato: ABC123 o ABC-123)
         import re

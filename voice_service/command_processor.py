@@ -21,6 +21,9 @@ def process_command(text: str, intent: Dict[str, Any]) -> str:
         if query_type == "total_cars" or query_type == "active_vehicles":
             return get_active_vehicles_count()
         
+        elif query_type == "list_users":
+            return get_users_list()
+        
         elif query_type == "search_plate":
             plate = intent.get("plate")
             if not plate:
@@ -160,3 +163,35 @@ def get_last_detection() -> str:
     except Exception as e:
         logger.error(f"Error obteniendo última detección: {e}")
         return "No pude obtener la última detección."
+
+def get_users_list() -> str:
+    """Obtiene la lista de usuarios del sistema"""
+    try:
+        usuarios = backend_client.get_users()
+        
+        if usuarios is None:
+            return "No pude conectarme con el sistema para obtener los usuarios."
+        
+        count = len(usuarios)
+        
+        if count == 0:
+            return "No hay usuarios registrados en el sistema."
+        
+        # Contar por rol
+        roles_count = {}
+        for user in usuarios:
+            rol = user.get("rol", "desconocido")
+            roles_count[rol] = roles_count.get(rol, 0) + 1
+        
+        # Construir respuesta
+        response = f"Hay {count} usuario{'s' if count != 1 else ''} registrado{'s' if count != 1 else ''} en el sistema. "
+        
+        if roles_count:
+            roles_text = ", ".join([f"{count} {rol}{'s' if count != 1 else ''}" for rol, count in roles_count.items()])
+            response += f"Distribuidos en: {roles_text}."
+        
+        return response
+    
+    except Exception as e:
+        logger.error(f"Error obteniendo lista de usuarios: {e}")
+        return "No pude obtener la lista de usuarios del sistema."
