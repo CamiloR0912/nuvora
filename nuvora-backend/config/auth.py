@@ -3,7 +3,7 @@ from datetime import datetime, timedelta
 from typing import Optional, Union
 
 from fastapi import Depends, HTTPException, status, Header
-from fastapi.security import OAuth2PasswordBearer
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from jose import jwt, JWTError
 from sqlalchemy.orm import Session
 
@@ -16,9 +16,17 @@ ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60
 
 # API Key para comunicación entre microservicios
-SERVICE_API_KEY = os.getenv("SERVICE_API_KEY", "dev-service-key-change-in-prod")
+SERVICE_API_KEY = os.getenv("SERVICE_API_KEY", "nuvora-service-key-2024-change-in-prod")
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/users/login")
+# Definir permisos por servicio
+SERVICE_PERMISSIONS = {
+    "nuvora-service-key-2024-change-in-prod": ["read:users", "read:vehicles", "write:events"],
+    "voice-service-key": ["read:users"],  # Solo lectura de usuarios
+    "camera-service-key": ["read:vehicles", "write:events"]  # Sin acceso a usuarios
+}
+
+# Usamos HTTPBearer para autenticación JWT (permite que sea opcional)
+security = HTTPBearer(auto_error=False)
 
 def get_db():
     db = SessionLocal()
@@ -33,12 +41,18 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
     to_encode.update({"exp": expire})
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
-def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)) -> User:
+def get_current_user(credentials: Optional[HTTPAuthorizationCredentials] = Depends(security), db: Session = Depends(get_db)) -> User:
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="No autorizado",
         headers={"WWW-Authenticate": "Bearer"},
     )
+    
+    if not credentials:
+        raise credentials_exception
+    
+    token = credentials.credentials
+    
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         user_id: Optional[int] = payload.get("sub")
@@ -100,18 +114,22 @@ def verify_service_api_key(x_api_key: str = Header(...)) -> bool:
 
 
 def get_current_user_or_service(
-    token: Optional[str] = Depends(oauth2_scheme),
-    x_api_key: Optional[str] = Header(None),
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+    x_api_key: Optional[str] = Header(None, alias="X-API-Key"),
     db: Session = Depends(get_db)
-) -> Union[User, str]:
+) -> Union[User, dict]:
     """
     Permite autenticación dual: JWT de usuario o API Key de servicio.
-    Retorna el User si es JWT, o "service" si es API Key válida.
+    Retorna el User si es JWT, o dict con permisos si es API Key válida.
     """
     # Si viene API Key, validar servicio
     if x_api_key:
-        if x_api_key == SERVICE_API_KEY:
-            return "service"  # Indicador de que es una llamada de servicio
+        if x_api_key in SERVICE_PERMISSIONS:
+            return {
+                "type": "service",
+                "api_key": x_api_key,
+                "permissions": SERVICE_PERMISSIONS[x_api_key]
+            }
         else:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
@@ -119,7 +137,8 @@ def get_current_user_or_service(
             )
     
     # Si no hay API Key, validar JWT de usuario
-    if token:
+    if credentials:
+        token = credentials.credentials
         try:
             payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
             user_id: Optional[int] = payload.get("sub")

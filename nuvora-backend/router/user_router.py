@@ -1,9 +1,9 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
-from typing import List
+from typing import List, Union
 from werkzeug.security import check_password_hash, generate_password_hash
-from config.auth import create_access_token, get_current_user, require_admin
+from config.auth import create_access_token, get_current_user, require_admin, get_current_user_or_service
 from config.db import SessionLocal
 from model.users import User
 from schema.user_schema import UserCreate, UserResponse
@@ -19,10 +19,35 @@ def get_db():
         db.close()
 
 
-# 1️⃣ Obtener todos los usuarios (solo admins)
+# 1️⃣ Obtener todos los usuarios (solo admins o servicios autenticados)
 @user.get("/", response_model=List[UserResponse])
-def get_users(db: Session = Depends(get_db), admin: User = Depends(require_admin)):
-    return db.query(User).all()
+def get_users(
+    db: Session = Depends(get_db), 
+    current_user_or_service: Union[User, dict] = Depends(get_current_user_or_service)
+):
+    """
+    Obtiene todos los usuarios del sistema.
+    Requiere autenticación de admin (JWT) o API Key de servicio.
+    """
+    # Si es servicio, verificar permisos
+    if isinstance(current_user_or_service, dict) and current_user_or_service.get("type") == "service":
+        if "read:users" not in current_user_or_service.get("permissions", []):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="El servicio no tiene permisos para leer usuarios"
+            )
+        return db.query(User).all()
+    
+    # Si es usuario, verificar que sea admin
+    if isinstance(current_user_or_service, User):
+        if current_user_or_service.rol != 'admin':
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="No tienes permisos de administrador"
+            )
+        return db.query(User).all()
+    
+    raise HTTPException(status_code=401, detail="Autenticación requerida")
 
 
 # 2️⃣ Obtener usuario actual autenticado (debe ir ANTES de /{user_id})

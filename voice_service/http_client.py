@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 # Configuración del backend
 BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:8000")
-SERVICE_API_KEY = os.getenv("SERVICE_API_KEY", "dev-service-key-change-in-prod")
+SERVICE_API_KEY = os.getenv("SERVICE_API_KEY", "nuvora-service-key-2024-change-in-prod")
 
 
 class BackendClient:
