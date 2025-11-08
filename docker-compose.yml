@@ -8,16 +8,55 @@ services:
       db:
         condition: service_healthy
       rabbitmq:
-        condition: service_started
+        condition: service_healthy
+    environment:
+      DATABASE_URL: "mysql+pymysql://root:12345679@db:3306/test4"
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_USER: admin
+      RABBITMQ_PASS: admin
+      SECRET_KEY: "your-super-secret-jwt-key-change-in-prod"
+      SERVICE_API_KEY: "nuvora-service-key-2024-change-in-prod"
     networks:
       - smartnet
     labels:
+      - "traefik.enable=true"
       - "traefik.http.routers.backend-nuvora.rule=Host(`nuvora`) && PathPrefix(`/api`)"
-      - "traefik.http.routers.backend-nuvora.entrypoints=web"
+      - "traefik.http.routers.backend-nuvora.entrypoints=websecure"
+      - "traefik.http.routers.backend-nuvora.tls=true"
       - "traefik.http.services.backend.loadbalancer.server.port=8000"
       - "traefik.http.middlewares.backend-strip-prefix.stripprefix.prefixes=/api"
       - "traefik.http.routers.backend-nuvora.middlewares=backend-strip-prefix"
 
+  # vision_service:
+  #   build: ./vision_service
+  #   container_name: smartpark-vision
+  #   environment:
+  #     - STREAM_URL=http://streamservice:8000/cameras/entrada/stream
+  #     - RABBITMQ_HOST=rabbitmq
+  #     - RABBITMQ_PORT=5672
+  #     - RABBITMQ_USER=admin
+  #     - RABBITMQ_PASS=admin
+  #   depends_on:
+  #     rabbitmq:
+  #       condition: service_healthy
+  #   networks:
+  #     - smartnet
+  #   restart: on-failure
+
+  # voice_service:
+  #   build: ./voice_service
+  #   container_name: smartpark-voice
+  #   ports:
+  #     - "8003:8003"
+  #   environment:
+  #     BACKEND_URL: "http://smartpark-backend:8000"
+  #     SERVICE_API_KEY: "nuvora-service-key-2024-change-in-prod"
+  #   depends_on:
+  #     - backend
+  #   networks:
+  #     - smartnet
+  #   restart: on-failure
 
   frontend:
     build: ./nuvora-frontend
@@ -33,7 +72,8 @@ services:
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.frontend.rule=Host(`nuvora`)"
-      - "traefik.http.routers.frontend.entrypoints=web"
+      - "traefik.http.routers.frontend.entrypoints=websecure"
+      - "traefik.http.routers.frontend.tls=true"
       - "traefik.http.services.frontend.loadbalancer.server.port=5173"
 
   db:
@@ -41,13 +81,13 @@ services:
     container_name: smartpark-db
     environment:
       MYSQL_ROOT_PASSWORD: 12345679
-      MYSQL_DATABASE: test3
+      MYSQL_DATABASE: test4
     ports:
       - "3306:3306"
-    volumes:
-      - db_data:/var/lib/mysql
     networks:
       - smartnet
+    volumes:
+      - db_data:/var/lib/mysql
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p12345679"]
       interval: 10s
@@ -61,8 +101,19 @@ services:
     ports:
       - "5672:5672"
       - "15672:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: admin
+      RABBITMQ_DEFAULT_PASS: admin
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
     networks:
       - smartnet
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
 
   traefik:
     image: traefik:v2.5
@@ -71,16 +122,22 @@ services:
       - "--api.insecure=true"
       - "--providers.docker=true"
       - "--entrypoints.web.address=:80"
+      - "--entrypoints.websecure.address=:443"
+      - "--providers.file.filename=/traefik_dynamic.yml"
     ports:
       - "80:80"
+      - "443:443"
       - "8080:8080"
     networks:
       - smartnet
     volumes:
       - "/var/run/docker.sock:/var/run/docker.sock:ro"
+      - "./certs:/certs"
+      - "./traefik_dynamic.yml:/traefik_dynamic.yml"
 
 networks:
   smartnet:
 
 volumes:
   db_data:
+  rabbitmq_data:

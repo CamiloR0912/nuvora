@@ -1,14 +1,23 @@
 from pydantic import BaseModel
+from typing import Optional
+from datetime import datetime
 
-class UserBase(BaseModel):
-    name: str
-    username: str
-    user_passw: str
+
+class UserCreate(BaseModel):
+    nombre: str
+    rol: str
+    usuario: str
+    password: str
+
 
 class UserResponse(BaseModel):
     id: int
-    name: str
-    username: str
+    nombre: str
+    rol: str
+    usuario: str
+    activo: bool
+    created_at: Optional[datetime]
+    updated_at: Optional[datetime]
 
-class Config:
-    from_attributes = True 
+    class Config:
+        from_attributes = True
