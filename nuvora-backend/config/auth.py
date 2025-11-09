@@ -20,8 +20,8 @@ SERVICE_API_KEY = os.getenv("SERVICE_API_KEY", "nuvora-service-key-2024-change-i
 
 # Definir permisos por servicio
 SERVICE_PERMISSIONS = {
-    "nuvora-service-key-2024-change-in-prod": ["read:users", "read:vehicles", "write:events"],
-    "voice-service-key": ["read:users"],  # Solo lectura de usuarios
+    "nuvora-service-key-2024-change-in-prod": ["read:users", "read:vehicles", "read:tickets", "write:events"],
+    "voice-service-key": ["read:users", "read:tickets"],  # Solo lectura de usuarios y tickets
     "camera-service-key": ["read:vehicles", "write:events"]  # Sin acceso a usuarios
 }
 

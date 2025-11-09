@@ -4,13 +4,14 @@ from http_client import backend_client
 
 logger = logging.getLogger(__name__)
 
-def process_command(text: str, intent: Dict[str, Any]) -> str:
+def process_command_with_auth(text: str, intent: Dict[str, Any], user_jwt: str) -> str:
     """
-    Procesa el comando interpretado y genera una respuesta.
+    Procesa el comando interpretado CON autenticación del usuario (JWT requerido).
     
     Args:
         text: Texto original del usuario
         intent: Intención interpretada (query_type, params)
+        user_jwt: Token JWT del usuario autenticado
     
     Returns:
         Respuesta en texto natural
@@ -18,7 +19,18 @@ def process_command(text: str, intent: Dict[str, Any]) -> str:
     query_type = intent.get("query_type")
      
     try:
-        if query_type == "total_cars" or query_type == "active_vehicles":
+        # Comandos personalizados (requieren JWT del usuario)
+        if query_type == "my_tickets":
+            return get_my_tickets(user_jwt)
+        
+        elif query_type == "my_open_tickets":
+            return get_my_open_tickets(user_jwt)
+        
+        elif query_type == "my_stats":
+            return get_my_stats(user_jwt)
+        
+        # Comandos generales (usan API Key de servicio)
+        elif query_type == "total_cars" or query_type == "active_vehicles":
             return get_active_vehicles_count()
         
         elif query_type == "list_users":
@@ -52,6 +64,7 @@ def process_command(text: str, intent: Dict[str, Any]) -> str:
         logger.error(f"❌ Error procesando comando: {e}")
         return f"Lo siento, hubo un error al procesar tu solicitud: {str(e)}"
 
+# ========== FUNCIONES PARA COMANDOS GENERALES (usan API Key) ==========
 def get_active_vehicles_count() -> str:
     """Obtiene el número de vehículos activos"""
     try:
@@ -195,3 +208,102 @@ def get_users_list() -> str:
     except Exception as e:
         logger.error(f"Error obteniendo lista de usuarios: {e}")
         return "No pude obtener la lista de usuarios del sistema."
+
+# ========== FUNCIONES CON AUTENTICACIÓN DE USUARIO ==========
+
+def get_my_tickets(user_jwt: str) -> str:
+    """Obtiene los tickets del usuario autenticado"""
+    try:
+        tickets = backend_client.get_my_tickets(user_jwt)
+        
+        if tickets is None:
+            return "No pude conectarme con el sistema para obtener tus tickets."
+        
+        count = len(tickets)
+        
+        if count == 0:
+            return "No tienes tickets registrados."
+        
+        # Contar por estado
+        abiertos = sum(1 for t in tickets if t.get("estado") == "abierto")
+        cerrados = sum(1 for t in tickets if t.get("estado") == "cerrado")
+        
+        response = f"Tienes {count} ticket{'s' if count != 1 else ''} en total. "
+        
+        if abiertos > 0:
+            response += f"{abiertos} abierto{'s' if abiertos != 1 else ''}, "
+        if cerrados > 0:
+            response += f"{cerrados} cerrado{'s' if cerrados != 1 else ''}."
+        
+        # Agregar total facturado
+        total_facturado = sum(t.get("monto_total", 0) for t in tickets if t.get("monto_total"))
+        if total_facturado > 0:
+            response += f" Total facturado: ${total_facturado:,.0f}."
+        
+        return response
+    
+    except Exception as e:
+        logger.error(f"Error obteniendo mis tickets: {e}")
+        return "No pude obtener tus tickets."
+
+def get_my_open_tickets(user_jwt: str) -> str:
+    """Obtiene solo los tickets abiertos del usuario"""
+    try:
+        tickets = backend_client.get_my_open_tickets(user_jwt)
+        
+        if tickets is None:
+            return "No pude conectarme con el sistema."
+        
+        count = len(tickets)
+        
+        if count == 0:
+            return "No tienes tickets abiertos en este momento."
+        
+        response = f"Tienes {count} ticket{'s' if count != 1 else ''} abierto{'s' if count != 1 else ''}."
+        
+        # Mostrar placas de los tickets abiertos
+        if count > 0 and count <= 5:
+            placas = []
+            for ticket in tickets:
+                # Buscar el vehículo asociado
+                vehiculo_id = ticket.get("vehiculo_id")
+                if vehiculo_id:
+                    placa = ticket.get("placa", "desconocida")
+                    placas.append(placa)
+            
+            if placas:
+                response += f" Placas: {', '.join(placas)}."
+        
+        return response
+    
+    except Exception as e:
+        logger.error(f"Error obteniendo tickets abiertos: {e}")
+        return "No pude obtener tus tickets abiertos."
+
+def get_my_stats(user_jwt: str) -> str:
+    """Obtiene estadísticas del usuario autenticado"""
+    try:
+        tickets = backend_client.get_my_tickets(user_jwt)
+        
+        if tickets is None:
+            return "No pude obtener tus estadísticas."
+        
+        total = len(tickets)
+        abiertos = sum(1 for t in tickets if t.get("estado") == "abierto")
+        cerrados = sum(1 for t in tickets if t.get("estado") == "cerrado")
+        total_facturado = sum(t.get("monto_total", 0) for t in tickets if t.get("monto_total"))
+        
+        if total == 0:
+            return "No tienes actividad registrada en tu turno."
+        
+        response = f"Resumen de tu turno: {total} ticket{'s' if total != 1 else ''} procesado{'s' if total != 1 else ''}. "
+        response += f"{abiertos} abierto{'s' if abiertos != 1 else ''}, {cerrados} cerrado{'s' if cerrados != 1 else ''}. "
+        
+        if total_facturado > 0:
+            response += f"Total recaudado: ${total_facturado:,.0f}."
+        
+        return response
+    
+    except Exception as e:
+        logger.error(f"Error obteniendo estadísticas: {e}")
+        return "No pude obtener tus estadísticas."

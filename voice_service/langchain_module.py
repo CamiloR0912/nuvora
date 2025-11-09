@@ -57,18 +57,49 @@ def interpret_with_rules(user_input: str) -> Dict[str, Any]:
     Interpreta el comando usando reglas simples (fallback).
     Esto funciona sin necesidad de LLM externo.
     """
-    text = user_input.lower().strip()
+    import unicodedata
     
-    # Reglas de interpretación
-    if any(word in text for word in ["cuántos", "cuantos", "total", "cantidad"]):
+    # Normalizar texto: quitar tildes y convertir a minúsculas
+    def normalize_text(text: str) -> str:
+        """Elimina tildes y normaliza el texto"""
+        text = text.lower().strip()
+        # Eliminar tildes
+        text = ''.join(
+            c for c in unicodedata.normalize('NFD', text)
+            if unicodedata.category(c) != 'Mn'
+        )
+        return text
+    
+    text = normalize_text(user_input)
+    
+    # Reglas de interpretación (orden importa: más específicas primero)
+    
+    # Comandos relacionados con TICKETS/TÍQUETS (más específicos primero)
+    if any(word in text for word in ["tickets", "tiquets", "boletas"]):
+        if any(word in text for word in ["mis", "mostrar mis", "del turno"]):
+            return {"query_type": "my_tickets"}
+        elif any(word in text for word in ["abiertos", "abiertas"]):
+            return {"query_type": "my_open_tickets"}
+        elif any(word in text for word in ["total", "cuantos", "cantidad"]):
+            return {"query_type": "my_tickets"}  # "Total de tickets" = mis tickets
+        else:
+            return {"query_type": "my_tickets"}  # Por defecto, si menciona tickets
+    
+    # Comandos relacionados con VEHÍCULOS/CARROS
+    elif any(word in text for word in ["cuantos", "total", "cantidad"]):
         if any(word in text for word in ["activos", "parqueadero", "estacionados"]):
             return {"query_type": "active_vehicles"}
         if any(word in text for word in ["ingresaron", "entraron", "entrada"]):
             return {"query_type": "entries_count"}
+        # Si no especifica, asume vehículos
         return {"query_type": "total_cars"}
     
     elif any(word in text for word in ["usuarios", "lista de usuarios", "mostrar usuarios", "consultar usuarios"]):
         return {"query_type": "list_users"}
+    
+    # Resumen/estadísticas personales
+    elif any(word in text for word in ["mi resumen", "mi turno", "mis estadisticas"]):
+        return {"query_type": "my_stats"}
     
     elif any(word in text for word in ["buscar", "busca", "encontrar", "placa"]):
         # Extraer placa (formato: ABC123 o ABC-123)
@@ -82,13 +113,13 @@ def interpret_with_rules(user_input: str) -> Dict[str, Any]:
     elif any(word in text for word in ["historial", "salidas", "cerrados"]):
         return {"query_type": "history"}
     
-    elif any(word in text for word in ["estadísticas", "estadisticas", "resumen", "día"]):
+    elif any(word in text for word in ["estadisticas", "resumen", "dia"]):
         return {"query_type": "daily_stats"}
     
     elif any(word in text for word in ["cupos", "espacios", "disponibles"]):
         return {"query_type": "available_spaces"}
     
-    elif any(word in text for word in ["última", "ultima", "reciente", "placa detectada"]):
+    elif any(word in text for word in ["ultima", "reciente", "placa detectada"]):
         return {"query_type": "last_detection"}
     
     else:

@@ -1,11 +1,11 @@
-from fastapi import FastAPI, UploadFile, File, HTTPException
+from fastapi import FastAPI, UploadFile, File, HTTPException, Header
 from fastapi.responses import JSONResponse
 import whisper
 import tempfile
 import os
 import logging
 from langchain_module import interpret
-from command_processor import process_command
+from command_processor import process_command_with_auth
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -82,17 +82,37 @@ async def transcribe_audio(file: UploadFile = File(...)):
         )
 
 @app.post("/voice-command")
-async def voice_command(file: UploadFile = File(...)):
+async def voice_command(
+    file: UploadFile = File(...),
+    authorization: str = Header(..., alias="Authorization")
+):
     """
-    Endpoint completo: recibe audio, transcribe, interpreta y ejecuta el comando.
+    Endpoint completo: recibe audio con JWT obligatorio, transcribe, interpreta y ejecuta el comando.
     
     Flujo:
     1. Audio → Whisper → Texto
     2. Texto → LangChain → Intención
-    3. Intención → Backend → Respuesta
+    3. Intención → Backend → Respuesta (con JWT del usuario)
+    
+    Headers:
+    - Authorization: Bearer <token> (REQUERIDO)
+    
+    Raises:
+    - 401: Si no se proporciona token JWT
+    - 500: Si hay errores en el procesamiento
     """
     if model is None:
         raise HTTPException(status_code=500, detail="Modelo Whisper no está cargado")
+    
+    # Validar y extraer JWT
+    if not authorization.startswith("Bearer "):
+        raise HTTPException(
+            status_code=401,
+            detail="Token de autenticación inválido. Use: 'Bearer <token>'"
+        )
+    
+    user_jwt = authorization.replace("Bearer ", "")
+    logger.info("🔐 Token JWT recibido del usuario")
     
     try:
         logger.info(f"🎤 Procesando comando de voz: {file.filename}")
@@ -113,8 +133,8 @@ async def voice_command(file: UploadFile = File(...)):
         intent = interpret(text)
         logger.info(f"🧠 Intención: {intent}")
         
-        # 3. Procesar y obtener respuesta
-        response = process_command(text, intent)
+        # 3. Procesar con autenticación de usuario
+        response = process_command_with_auth(text, intent, user_jwt)
         logger.info(f"✅ Respuesta: {response}")
         
         return {

@@ -20,17 +20,31 @@ class BackendClient:
     def __init__(self):
         self.base_url = BACKEND_URL
         self.api_key = SERVICE_API_KEY
-        self.headers = {
-            "X-API-Key": self.api_key,
-            "Content-Type": "application/json"
-        }
+    
+    def _get_headers(self, user_jwt: Optional[str] = None) -> Dict[str, str]:
+        """
+        Genera headers de autenticación:
+        - Si hay JWT de usuario: usa JWT (para endpoints que requieren usuario específico)
+        - Si no hay JWT: usa API Key de servicio (para endpoints generales)
+        """
+        if user_jwt:
+            return {
+                "Authorization": f"Bearer {user_jwt}",
+                "Content-Type": "application/json"
+            }
+        else:
+            return {
+                "X-API-Key": self.api_key,
+                "Content-Type": "application/json"
+            }
     
     def _make_request(
         self, 
         method: str, 
         endpoint: str, 
         data: Optional[Dict[Any, Any]] = None,
-        params: Optional[Dict[str, Any]] = None
+        params: Optional[Dict[str, Any]] = None,
+        user_jwt: Optional[str] = None
     ) -> Optional[Dict[Any, Any]]:
         """
         Hace una petición HTTP al backend
@@ -40,11 +54,13 @@ class BackendClient:
             endpoint: Ruta del endpoint (ej: /tickets)
             data: Datos para enviar en el body (POST/PUT)
             params: Query parameters (GET)
+            user_jwt: Token JWT del usuario (opcional)
         
         Returns:
             Respuesta JSON o None si hay error
         """
         url = f"{self.base_url}{endpoint}"
+        headers = self._get_headers(user_jwt)
         
         try:
             logger.info(f"🌐 {method} {url}")
@@ -52,7 +68,7 @@ class BackendClient:
             response = requests.request(
                 method=method,
                 url=url,
-                headers=self.headers,
+                headers=headers,
                 json=data,
                 params=params,
                 timeout=10
@@ -109,15 +125,37 @@ class BackendClient:
     def get_tickets(
         self, 
         estado: Optional[str] = None,
-        limit: int = 100
+        limit: int = 100,
+        user_jwt: Optional[str] = None
     ) -> Optional[list]:
-        """Obtiene tickets con filtros opcionales"""
+        """
+        Obtiene tickets con filtros opcionales.
+        Si se proporciona user_jwt, obtiene los tickets del usuario autenticado.
+        Si no, usa API Key de servicio.
+        """
         params = {"limit": limit}
         if estado:
             params["estado"] = estado
         
-        result = self._make_request("GET", "/tickets", params=params)
+        result = self._make_request("GET", "/tickets/", params=params, user_jwt=user_jwt)
         return result if result else []
+    
+    def get_my_tickets(self, user_jwt: str) -> Optional[list]:
+        """
+        Obtiene los tickets del usuario autenticado.
+        Requiere JWT del usuario.
+        """
+        return self.get_tickets(user_jwt=user_jwt)
+    
+    def get_my_open_tickets(self, user_jwt: str) -> Optional[list]:
+        """
+        Obtiene solo los tickets abiertos del usuario autenticado.
+        Requiere JWT del usuario.
+        """
+        tickets = self.get_tickets(user_jwt=user_jwt)
+        if tickets:
+            return [t for t in tickets if t.get("estado") == "abierto"]
+        return []
     
     def get_ticket_by_id(self, ticket_id: int) -> Optional[Dict[Any, Any]]:
         """Obtiene un ticket específico"""
