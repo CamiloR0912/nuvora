@@ -13,7 +13,6 @@ import model.vehiculos
 import model.turnos
 import model.tickets
 import model.cierres
-import model.vehicles
 import logging
 
 logging.basicConfig(level=logging.INFO)

@@ -1,6 +1,5 @@
 from config.rabbitmq import RabbitMQConsumer
 from config.db import get_db
-from model.vehicles import Vehicle
 from model.tickets import Ticket
 from model.vehiculos import Vehiculo
 from model.turnos import Turno
