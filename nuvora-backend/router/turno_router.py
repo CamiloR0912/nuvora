@@ -1,9 +1,9 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from config.db import SessionLocal
-from config.auth import get_current_user, require_admin, require_cajero
+from config.auth import get_current_user, require_admin, require_cajero, create_access_token
 from model.users import User
-from schema.turno_schema import TurnoCreate, TurnoResponse
+from schema.turno_schema import TurnoCreate, TurnoResponse, TurnoIniciadoResponse
 from model.turnos import Turno
 from typing import List
 from datetime import datetime
@@ -19,7 +19,7 @@ def get_db():
 		db.close()
 
 
-@turno_router.post("/iniciar", response_model=TurnoResponse)
+@turno_router.post("/iniciar", response_model=TurnoIniciadoResponse)
 def iniciar_turno(
 	monto_inicial: float,
 	observaciones: str = None,
@@ -29,6 +29,7 @@ def iniciar_turno(
 	"""
 	Inicia un turno para el usuario autenticado.
 	Ya no necesitas pasar user_id manualmente - se obtiene del token JWT.
+	Devuelve el turno creado Y un nuevo token JWT con el turno_id incluido.
 	"""
 	# Verificar si el usuario ya tiene un turno abierto
 	turno_abierto = db.query(Turno).filter(
@@ -53,7 +54,27 @@ def iniciar_turno(
 	db.add(nuevo_turno)
 	db.commit()
 	db.refresh(nuevo_turno)
-	return nuevo_turno
+	
+	# Crear nuevo token con turno_id
+	nuevo_token = create_access_token({
+		"sub": str(current_user.id),
+		"turno_id": nuevo_turno.id
+	})
+	
+	# Crear respuesta con el turno y el token
+	return TurnoIniciadoResponse(
+		id=nuevo_turno.id,
+		usuario_id=nuevo_turno.usuario_id,
+		fecha_inicio=nuevo_turno.fecha_inicio,
+		fecha_fin=nuevo_turno.fecha_fin,
+		monto_inicial=nuevo_turno.monto_inicial,
+		monto_total=nuevo_turno.monto_total,
+		estado=nuevo_turno.estado,
+		observaciones=nuevo_turno.observaciones,
+		created_at=nuevo_turno.created_at,
+		access_token=nuevo_token,
+		token_type="bearer"
+	)
 
 
 @turno_router.post("/", response_model=TurnoResponse)
@@ -95,6 +116,7 @@ def listar_todos_turnos(db: Session = Depends(get_db), admin: User = Depends(req
 
 
 @turno_router.get("/actual", response_model=TurnoResponse)
+@turno_router.get("/activo", response_model=TurnoResponse)
 def obtener_turno_actual(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
 	"""
 	Obtiene el turno actualmente abierto del usuario autenticado.

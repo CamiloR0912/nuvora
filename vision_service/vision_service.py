@@ -3,9 +3,10 @@ import cv2
 import easyocr
 from rabbitmq_producer import RabbitMQProducer
 from datetime import datetime
-import logging, time, re
+import logging, time, re, os, sys
 from collections import defaultdict, Counter
 from difflib import SequenceMatcher
+from jose import jwt, JWTError
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -19,6 +20,36 @@ ocr = easyocr.Reader(['en'])
 # Inicializar RabbitMQ Producer
 rabbitmq_producer = RabbitMQProducer()
 rabbitmq_producer.connect()
+
+# Verificar token JWT
+JWT_TOKEN = os.getenv('VISION_SERVICE_JWT_TOKEN', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI4IiwidHVybm9faWQiOjMsImV4cCI6MTc2MjcxMTU1NX0.JsxFpDRbZ_EoP1h1tUPqtMEmWIo1aKDIy0W2Iowkq8w')
+SECRET_KEY = os.getenv('SECRET_KEY', 'change-me-in-prod')
+
+if not JWT_TOKEN:
+    logger.error("❌ ERROR: No se encontró VISION_SERVICE_JWT_TOKEN")
+    logger.error("❌ Configura: $env:VISION_SERVICE_JWT_TOKEN='tu-token'")
+    sys.exit(1)
+
+# Decodificar token para obtener user_id y turno_id
+try:
+    payload = jwt.decode(JWT_TOKEN, SECRET_KEY, algorithms=['HS256'])
+    USER_ID = payload.get('sub')
+    TURNO_ID = payload.get('turno_id')  # El turno debe venir en el token
+    
+    if not USER_ID:
+        logger.error("❌ Token no contiene user_id (sub)")
+        sys.exit(1)
+    
+    if not TURNO_ID:
+        logger.error("❌ Token no contiene turno_id")
+        logger.error("⚠️  El token debe incluir el turno_id cuando se inicia sesión con un turno activo")
+        sys.exit(1)
+        
+    logger.info(f"✅ Token válido - User ID: {USER_ID}, Turno ID: {TURNO_ID}")
+    
+except JWTError as e:
+    logger.error(f"❌ Token inválido: {e}")
+    sys.exit(1)
 
 # Mapeo de clases YOLO para vehículos
 VEHICLE_CLASSES = {2: 'car', 3: 'motorcycle', 5: 'bus', 7: 'truck'}
@@ -188,18 +219,17 @@ def detect_vehicles_and_plates(frame):
                         current_time - last_sent[vehicle_type] > COOLDOWN or
                         sent_plates.get(vehicle_type) != consensus):
                         
-                        vehicle_event = {
+                        # Crear ticket de entrada
+                        ticket_data = {
+                            'placa': consensus,
+                            'user_id': USER_ID,
+                            'turno_id': TURNO_ID,
                             'vehicle_type': vehicle_type,
                             'confidence': float(score),
-                            'timestamp': datetime.now().isoformat(),
-                            'plate_number': consensus,
-                            'coordinates': {
-                                'x1': int(x1), 'y1': int(y1),
-                                'x2': int(x2), 'y2': int(y2)
-                            }
+                            'timestamp': datetime.now().isoformat()
                         }
-                        rabbitmq_producer.publish_vehicle_event(vehicle_event)
-                        logger.info(f"✅ Placa confirmada y enviada: {consensus}")
+                        rabbitmq_producer.publish_ticket_entry(ticket_data)
+                        logger.info(f"✅ Ticket de entrada creado para placa: {consensus}")
                         logger.info(f"⏱️ Cooldown activo por {COOLDOWN}s para {vehicle_type}")
                         
                         last_sent[vehicle_type] = current_time

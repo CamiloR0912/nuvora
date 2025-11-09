@@ -13,7 +13,7 @@ class RabbitMQProducer:
         self.port = int(os.getenv('RABBITMQ_PORT', 5672))
         self.user = os.getenv('RABBITMQ_USER', 'admin')
         self.password = os.getenv('RABBITMQ_PASS', 'admin')
-        self.queue_name = 'vehicle_events'
+        self.ticket_queue = 'ticket_entries'  # Nueva cola para tickets
         self.connection = None
         self.channel = None
         
@@ -29,26 +29,31 @@ class RabbitMQProducer:
             )
             self.connection = pika.BlockingConnection(parameters)
             self.channel = self.connection.channel()
-            self.channel.queue_declare(queue=self.queue_name, durable=True)
+            # Declarar cola para tickets
+            self.channel.queue_declare(queue=self.ticket_queue, durable=True)
             logger.info("✅ Connected to RabbitMQ successfully")
         except Exception as e:
             logger.error(f"❌ Failed to connect to RabbitMQ: {e}")
             raise
     
-    def publish_vehicle_event(self, vehicle_data: dict):
+    def publish_ticket_entry(self, ticket_data: dict):
+        """
+        Publica un ticket de entrada en la cola.
+        ticket_data debe contener: placa, user_id, turno_id, timestamp
+        """
         try:
-            message = json.dumps(vehicle_data, ensure_ascii=False)
+            message = json.dumps(ticket_data, ensure_ascii=False)
             self.channel.basic_publish(
                 exchange='',
-                routing_key=self.queue_name,
+                routing_key=self.ticket_queue,
                 body=message,
                 properties=pika.BasicProperties(
                     delivery_mode=2,  # make message persistent
                 )
             )
-            logger.info(f"📤 Published vehicle event: {vehicle_data.get('plate_number', 'N/A')}")
+            logger.info(f"🎫 Published ticket entry: {ticket_data.get('placa', 'N/A')} (Turno: {ticket_data.get('turno_id')})")
         except Exception as e:
-            logger.error(f"❌ Failed to publish message: {e}")
+            logger.error(f"❌ Failed to publish ticket: {e}")
             raise
     
     def close(self):

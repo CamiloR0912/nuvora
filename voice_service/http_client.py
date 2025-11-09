@@ -89,36 +89,7 @@ class BackendClient:
         except Exception as e:
             logger.error(f"❌ Error inesperado: {str(e)}")
             return None
-    
-    # ========== MÉTODOS PARA VEHÍCULOS ==========
-    
-    def get_vehiculos_activos(self) -> Optional[list]:
-        """Obtiene lista de vehículos activos en el parqueadero"""
-        result = self._make_request("GET", "/vehiculos/activos")
-        return result if result else []
-    
-    def get_vehiculos_historial(self) -> Optional[list]:
-        """Obtiene historial de vehículos que ya salieron"""
-        result = self._make_request("GET", "/vehiculos/historial")
-        return result if result else []
-    
-    def search_vehiculo_by_plate(self, plate: str) -> Optional[Dict[Any, Any]]:
-        """Busca un vehículo específico por placa en activos e historial"""
-        # Buscar en activos
-        activos = self.get_vehiculos_activos()
-        if activos:
-            for v in activos:
-                if v.get("placa", "").upper() == plate.upper():
-                    return v
-        
-        # Buscar en historial
-        historial = self.get_vehiculos_historial()
-        if historial:
-            for v in historial:
-                if v.get("placa", "").upper() == plate.upper():
-                    return v
-        
-        return None
+
     
     # ========== MÉTODOS PARA TICKETS ==========
     
@@ -190,10 +161,18 @@ class BackendClient:
     
     # ========== MÉTODOS PARA USUARIOS ==========
     
-    def get_users(self) -> Optional[list]:
-        """Obtiene todos los usuarios del sistema"""
-        result = self._make_request("GET", "/users/")
-        return result if result else []
+    def get_users(self, user_jwt: Optional[str] = None) -> Optional[list]:
+        """
+        Obtiene todos los usuarios del sistema.
+        
+        Args:
+            user_jwt: Token JWT del usuario admin (REQUERIDO - el endpoint solo acepta JWT)
+        
+        Returns:
+            Lista de usuarios o None si falla
+        """
+        result = self._make_request("GET", "/users/", user_jwt=user_jwt)
+        return result
 
 
 # Singleton para reutilizar en toda la aplicación

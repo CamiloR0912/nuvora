@@ -73,5 +73,22 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
     usuario_db = db.query(User).filter(User.usuario == form_data.username).first()
     if not usuario_db or not check_password_hash(usuario_db.password_hash, form_data.password):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Credenciales inválidas")
-    token = create_access_token({"sub": str(usuario_db.id)})
-    return {"access_token": token, "token_type": "bearer"}
+    
+    # Buscar turno activo del usuario
+    from model.turnos import Turno
+    turno_activo = db.query(Turno).filter(
+        Turno.usuario_id == usuario_db.id,
+        Turno.estado == 'abierto'
+    ).first()
+    
+    # Crear token con user_id y turno_id (si existe)
+    token_data = {"sub": str(usuario_db.id)}
+    if turno_activo:
+        token_data["turno_id"] = turno_activo.id
+    
+    token = create_access_token(token_data)
+    return {
+        "access_token": token, 
+        "token_type": "bearer",
+        "turno_id": turno_activo.id if turno_activo else None
+    }

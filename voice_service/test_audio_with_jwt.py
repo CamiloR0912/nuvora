@@ -96,7 +96,7 @@ if __name__ == "__main__":
         username = sys.argv[2]
         password = sys.argv[3]
     else:
-        username = "admin"
+        username = "teo"
         password = "000"
     
     # Hacer login

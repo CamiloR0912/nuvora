@@ -8,12 +8,12 @@ import time
 logger = logging.getLogger(__name__)
 
 class RabbitMQConfig:
-    def __init__(self):
+    def __init__(self, queue_name='vehicle_events'):
         self.host = os.getenv('RABBITMQ_HOST', 'localhost')
         self.port = int(os.getenv('RABBITMQ_PORT', 5672))
         self.user = os.getenv('RABBITMQ_USER', 'admin')
         self.password = os.getenv('RABBITMQ_PASS', 'admin')
-        self.queue_name = 'vehicle_events'
+        self.queue_name = queue_name
         
     def get_connection(self):
         credentials = pika.PlainCredentials(self.user, self.password)
@@ -32,8 +32,8 @@ class RabbitMQConfig:
         return channel
 
 class RabbitMQConsumer:
-    def __init__(self):
-        self.config = RabbitMQConfig()
+    def __init__(self, queue_name='vehicle_events'):
+        self.config = RabbitMQConfig(queue_name=queue_name)
         self.connection = None
         self.channel = None
         

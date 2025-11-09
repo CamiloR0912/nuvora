@@ -34,7 +34,7 @@ def process_command_with_auth(text: str, intent: Dict[str, Any], user_jwt: str) 
             return get_active_vehicles_count()
         
         elif query_type == "list_users":
-            return get_users_list()
+            return get_users_list(user_jwt)  # ✅ Pasar JWT
         
         elif query_type == "search_plate":
             plate = intent.get("plate")
@@ -68,12 +68,10 @@ def process_command_with_auth(text: str, intent: Dict[str, Any], user_jwt: str) 
 def get_active_vehicles_count() -> str:
     """Obtiene el número de vehículos activos"""
     try:
-        activos = backend_client.get_vehiculos_activos()
+        activos = backend_client.get_vehicle_events_count()
         if activos is None:
             return "No pude conectarme con el sistema de parqueo."
-        
-        count = len(activos)
-        
+        count = activos
         if count == 0:
             return "No hay vehículos en el parqueadero actualmente."
         elif count == 1:
