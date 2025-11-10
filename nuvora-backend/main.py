@@ -22,10 +22,11 @@ app = FastAPI(title="SmartPark API", redirect_slashes=False)
 
 Base.metadata.create_all(bind=engine)
 
-app.include_router(user)
-app.include_router(turno_router)
-app.include_router(ticket_router)
-app.include_router(client_router)
+app.include_router(user, prefix="/api")
+app.include_router(turno_router, prefix="/api")
+app.include_router(ticket_router, prefix="/api")
+app.include_router(client_router, prefix="/api")
+
 
 def start_rabbitmq_consumer():
     """Inicia el consumidor de RabbitMQ en un thread separado"""
