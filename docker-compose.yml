@@ -20,11 +20,41 @@ services:
     networks:
       - smartnet
     labels:
+      - "traefik.enable=true"
       - "traefik.http.routers.backend-nuvora.rule=Host(`nuvora`) && PathPrefix(`/api`)"
-      - "traefik.http.routers.backend-nuvora.entrypoints=web"
+      - "traefik.http.routers.backend-nuvora.entrypoints=websecure"
+      - "traefik.http.routers.backend-nuvora.tls=true"
       - "traefik.http.services.backend.loadbalancer.server.port=8000"
-      - "traefik.http.middlewares.backend-strip-prefix.stripprefix.prefixes=/api"
-      - "traefik.http.routers.backend-nuvora.middlewares=backend-strip-prefix"
+
+  # vision_service:
+  #   build: ./vision_service
+  #   container_name: smartpark-vision
+  #   environment:
+  #     - STREAM_URL=http://streamservice:8000/cameras/entrada/stream
+  #     - RABBITMQ_HOST=rabbitmq
+  #     - RABBITMQ_PORT=5672
+  #     - RABBITMQ_USER=admin
+  #     - RABBITMQ_PASS=admin
+  #   depends_on:
+  #     rabbitmq:
+  #       condition: service_healthy
+  #   networks:
+  #     - smartnet
+  #   restart: on-failure
+
+  # voice_service:
+  #   build: ./voice_service
+  #   container_name: smartpark-voice
+  #   ports:
+  #     - "8003:8003"
+  #   environment:
+  #     BACKEND_URL: "http://smartpark-backend:8000"
+  #     SERVICE_API_KEY: "nuvora-service-key-2024-change-in-prod"
+  #   depends_on:
+  #     - backend
+  #   networks:
+  #     - smartnet
+  #   restart: on-failure
 
   # vision_service:
   #   build: ./vision_service
@@ -70,7 +100,8 @@ services:
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.frontend.rule=Host(`nuvora`)"
-      - "traefik.http.routers.frontend.entrypoints=web"
+      - "traefik.http.routers.frontend.entrypoints=websecure"
+      - "traefik.http.routers.frontend.tls=true"
       - "traefik.http.services.frontend.loadbalancer.server.port=5173"
 
   db:
@@ -83,12 +114,16 @@ services:
       - "3306:3306"
     networks:
       - smartnet
+    volumes:
+      - db_data:/var/lib/mysql
+      - ./nuvora-backend/db/init_schema.sql:/docker-entrypoint-initdb.d/init_schema.sql:ro
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p12345679"]
       interval: 10s
       timeout: 5s
       retries: 5
       start_period: 30s
+
 
   rabbitmq:
     image: rabbitmq:3-management
@@ -117,13 +152,18 @@ services:
       - "--api.insecure=true"
       - "--providers.docker=true"
       - "--entrypoints.web.address=:80"
+      - "--entrypoints.websecure.address=:443"
+      - "--providers.file.filename=/traefik_dynamic.yml"
     ports:
       - "80:80"
+      - "443:443"
       - "8080:8080"
     networks:
       - smartnet
     volumes:
       - "/var/run/docker.sock:/var/run/docker.sock:ro"
+      - "./certs:/certs"
+      - "./traefik_dynamic.yml:/traefik_dynamic.yml"
 
 networks:
   smartnet:

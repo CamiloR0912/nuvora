@@ -64,3 +64,13 @@ def root():
             "rabbitmq_consumer": "active"
         }
     }
+
+@app.get("/")
+def root():
+    return {
+        "message": "SmartPark API",
+        "status": "running",
+        "services": {
+            "rabbitmq_consumer": "active"
+        }
+    }

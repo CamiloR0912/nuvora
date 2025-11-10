@@ -52,7 +52,7 @@ def create_user(data: UserCreate, db: Session = Depends(get_db), admin: User = D
     # Verificar si ya existe el username
     existing_user = db.query(User).filter(User.usuario == data.usuario).first()
     if existing_user:
-        raise HTTPException(status_code=400, detail="El nombre de usuario ya existe")
+        raise HTTPException(status_code=400, detail="El usuario ya existe")
 
     hashed_password = generate_password_hash(data.password, method="pbkdf2:sha256", salt_length=30)
     new_user = User(
@@ -64,7 +64,7 @@ def create_user(data: UserCreate, db: Session = Depends(get_db), admin: User = D
     db.add(new_user)
     db.commit()
     db.refresh(new_user)
-    return new_user
+    return {"message": "Usuario creado correctamente", "usuario": new_user.usuario}
 
 
 # 5️⃣ Login - devuelve JWT token
