@@ -25,8 +25,7 @@ services:
       - "traefik.http.routers.backend-nuvora.entrypoints=websecure"
       - "traefik.http.routers.backend-nuvora.tls=true"
       - "traefik.http.services.backend.loadbalancer.server.port=8000"
-      - "traefik.http.middlewares.backend-strip-prefix.stripprefix.prefixes=/api"
-      - "traefik.http.routers.backend-nuvora.middlewares=backend-strip-prefix"
+
 
   # vision_service:
   #   build: ./vision_service
@@ -88,12 +87,14 @@ services:
       - smartnet
     volumes:
       - db_data:/var/lib/mysql
+      - ./nuvora-backend/db/init_schema.sql:/docker-entrypoint-initdb.d/init_schema.sql:ro
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p12345679"]
       interval: 10s
       timeout: 5s
       retries: 5
       start_period: 30s
+
 
   rabbitmq:
     image: rabbitmq:3-management

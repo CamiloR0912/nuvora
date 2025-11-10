@@ -1,102 +1,121 @@
-from fastapi import APIRouter, Depends, HTTPException, status
-from fastapi.security import OAuth2PasswordRequestForm
+from fastapi import APIRouter, HTTPException, status, Depends
 from sqlalchemy.orm import Session
-from typing import List, Union
 from werkzeug.security import check_password_hash, generate_password_hash
-from config.auth import create_access_token, get_current_user, require_admin, get_current_user_or_service
-from config.db import SessionLocal
+from pydantic import BaseModel, Field
+from datetime import datetime
+from typing import Optional
+
+from config.db import get_db
 from model.users import User
-from schema.user_schema import UserCreate, UserResponse
+from model.turnos import Turno
+from config.auth import create_access_token
 
-user = APIRouter(prefix="/users", tags=["Usuarios"])
-
-# 🔹 Dependencia de sesión
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
+user = APIRouter(prefix="/api/users", tags=["users"])
 
 
-# 1️⃣ Obtener todos los usuarios (solo admins o servicios autenticados)
-@user.get("/", response_model=List[UserResponse])
-def get_users(
-    db: Session = Depends(get_db), 
-    current_user_or_service: Union[User, dict] = Depends(get_current_user_or_service)
-):
-    """
-    Obtiene todos los usuarios del sistema.
-    Requiere autenticación de admin (JWT) o API Key de servicio.
-    """
-    # Si es servicio, verificar permisos
-    if isinstance(current_user_or_service, dict) and current_user_or_service.get("type") == "service":
-        if "read:users" not in current_user_or_service.get("permissions", []):
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="El servicio no tiene permisos para leer usuarios"
-            )
-        return db.query(User).all()
-    
-    # Si es usuario, verificar que sea admin
-    if isinstance(current_user_or_service, User):
-        if current_user_or_service.rol != 'admin':
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="No tienes permisos de administrador"
-            )
-        return db.query(User).all()
-    
-    raise HTTPException(status_code=401, detail="Autenticación requerida")
+# ---------------------- MODELOS DE ENTRADA ----------------------
+
+class UserCreate(BaseModel):
+    nombre: str
+    rol: str
+    usuario: str
+    password: str
 
 
-# 2️⃣ Obtener usuario actual autenticado (debe ir ANTES de /{user_id})
-@user.get("/me")
-def read_me(current_user: User = Depends(get_current_user)):
-    return {
-        "id": current_user.id,
-        "nombre": current_user.nombre,
-        "usuario": current_user.usuario,
-        "rol": current_user.rol.name if hasattr(current_user.rol, "name") else current_user.rol,
-        "activo": current_user.activo,
-    }
+class LoginRequest(BaseModel):
+    username: str = Field(..., example="admin")
+    password: str = Field(..., example="000")
+    monto_inicial: Optional[float] = Field(0.0, ge=0, example=20000)
 
 
-# 3️⃣ Obtener un usuario por ID (solo admins)
-@user.get("/{user_id}", response_model=UserResponse)
-def get_user(user_id: int, db: Session = Depends(get_db), admin: User = Depends(require_admin)):
-    usuario = db.query(User).filter(User.id == user_id).first()
-    if not usuario:
-        raise HTTPException(status_code=404, detail="Usuario no encontrado")
-    return usuario
+# ---------------------- RUTAS ----------------------
 
-
-# 4️⃣ Crear usuario nuevo (solo admins)
-@user.post("/", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
-def create_user(data: UserCreate, db: Session = Depends(get_db), admin: User = Depends(require_admin)):
-    # Verificar si ya existe el username
+@user.post("/register")
+def register_user(data: UserCreate, db: Session = Depends(get_db)):
+    """Crear un nuevo usuario"""
     existing_user = db.query(User).filter(User.usuario == data.usuario).first()
     if existing_user:
-        raise HTTPException(status_code=400, detail="El nombre de usuario ya existe")
+        raise HTTPException(status_code=400, detail="El usuario ya existe")
 
-    hashed_password = generate_password_hash(data.password, method="pbkdf2:sha256", salt_length=30)
+    hashed_password = generate_password_hash(data.password, method='pbkdf2:sha256', salt_length=30)
     new_user = User(
         nombre=data.nombre,
         rol=data.rol,
         usuario=data.usuario,
-        password_hash=hashed_password
+        password_hash=hashed_password,
+        activo=True
     )
     db.add(new_user)
     db.commit()
     db.refresh(new_user)
-    return new_user
+    return {"message": "Usuario creado correctamente", "usuario": new_user.usuario}
 
 
-# 5️⃣ Login - devuelve JWT token
 @user.post("/login")
-def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
-    usuario_db = db.query(User).filter(User.usuario == form_data.username).first()
-    if not usuario_db or not check_password_hash(usuario_db.password_hash, form_data.password):
+def login(payload: LoginRequest, db: Session = Depends(get_db)):
+    """
+    Login via JSON: { username, password, monto_inicial }
+    - Valida credenciales
+    - Retorna JWT
+    - Crea un turno ABIERTO para el usuario si no tiene uno abierto (usa monto_inicial)
+    """
+    usuario_db = db.query(User).filter(User.usuario == payload.username).first()
+    if not usuario_db or not check_password_hash(usuario_db.password_hash, payload.password):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Credenciales inválidas")
+
+    # Crear token JWT
     token = create_access_token({"sub": str(usuario_db.id)})
-    return {"access_token": token, "token_type": "bearer"}
+
+    # Buscar turno abierto del usuario
+    turno = db.query(Turno).filter(Turno.usuario_id == usuario_db.id, Turno.estado == 'abierto').first()
+
+    # Si no existe, crear uno usando monto_inicial
+    if not turno:
+        turno = Turno(
+            usuario_id=usuario_db.id,
+            fecha_inicio=datetime.now(),
+            monto_inicial=payload.monto_inicial or 0.0,
+            estado='abierto'
+        )
+        try:
+            db.add(turno)
+            db.commit()
+            db.refresh(turno)
+        except Exception as e:
+            db.rollback()
+            raise HTTPException(status_code=500, detail=f"Error al crear turno: {str(e)}")
+
+    # Respuesta: token y datos del turno
+    return {
+        "access_token": token,
+        "token_type": "bearer",
+        "usuario": {
+            "id": usuario_db.id,
+            "nombre": usuario_db.nombre,
+            "rol": usuario_db.rol,
+            "usuario": usuario_db.usuario,
+        },
+        "turno": {
+            "id": turno.id,
+            "usuario_id": turno.usuario_id,
+            "fecha_inicio": turno.fecha_inicio,
+            "estado": turno.estado,
+            "monto_inicial": float(turno.monto_inicial or 0.0)
+        }
+    }
+
+
+@user.get("/")
+def get_users(db: Session = Depends(get_db)):
+    """Listar todos los usuarios"""
+    users = db.query(User).all()
+    return users
+
+
+@user.get("/{id}")
+def get_user(id: int, db: Session = Depends(get_db)):
+    """Obtener un usuario por ID"""
+    user = db.query(User).filter(User.id == id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+    return user
