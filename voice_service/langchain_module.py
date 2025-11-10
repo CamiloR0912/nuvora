@@ -55,7 +55,7 @@ def interpret_with_llm(user_input: str) -> Dict[str, Any]:
 def interpret_with_rules(user_input: str) -> Dict[str, Any]:
     """
     Interpreta el comando usando reglas simples (fallback).
-    Esto funciona sin necesidad de LLM externo.
+    Basado en el sistema de tickets actual.
     """
     import unicodedata
     
@@ -72,58 +72,135 @@ def interpret_with_rules(user_input: str) -> Dict[str, Any]:
     
     text = normalize_text(user_input)
     
-    # Reglas de interpretación (orden importa: más específicas primero)
+    # ========== BÚSQUEDA DE PLACAS (PRIORIDAD ALTA) ==========
     
-    # Comandos relacionados con TICKETS/TÍQUETS (más específicos primero)
-    if any(word in text for word in ["tickets", "tiquets", "boletas"]):
-        if any(word in text for word in ["mis", "mostrar mis", "del turno"]):
-            return {"query_type": "my_tickets"}
-        elif any(word in text for word in ["abiertos", "abiertas"]):
-            return {"query_type": "my_open_tickets"}
-        elif any(word in text for word in ["total", "cuantos", "cantidad"]):
-            return {"query_type": "my_tickets"}  # "Total de tickets" = mis tickets
-        else:
-            return {"query_type": "my_tickets"}  # Por defecto, si menciona tickets
+    import re
     
-    # Comandos relacionados con VEHÍCULOS/CARROS
-    elif any(word in text for word in ["cuantos", "total", "cantidad"]):
-        if any(word in text for word in ["activos", "parqueadero", "estacionados"]):
-            return {"query_type": "active_vehicles"}
-        if any(word in text for word in ["ingresaron", "entraron", "entrada"]):
-            return {"query_type": "entries_count"}
-        # Si no especifica, asume vehículos
-        return {"query_type": "total_cars"}
+    # Función para reconstruir placas de transcripciones fragmentadas
+    def reconstruct_plate(text: str) -> str:
+        """
+        Intenta reconstruir placas que Whisper transcribió con espacios.
+        Ej: "a vd 1-1-1" → "AVD111"
+        """
+        # Eliminar espacios y guiones, convertir a mayúsculas
+        cleaned = text.upper().replace(" ", "").replace("-", "")
+        # Reemplazar letras sueltas comunes de Whisper
+        cleaned = cleaned.replace("VD", "VD").replace("LL", "LL")
+        return cleaned
     
-    elif any(word in text for word in ["usuarios", "lista de usuarios", "mostrar usuarios", "consultar usuarios"]):
-        return {"query_type": "list_users"}
+    # Buscar patrón de placa: 3 letras + 2-3 números (ABC123, ZCX123, etc.)
+    plate_match = re.search(r'\b([A-Z]{3}[-\s]?\d{2,3})\b', user_input.upper())
     
-    # Resumen/estadísticas personales
-    elif any(word in text for word in ["mi resumen", "mi turno", "mis estadisticas"]):
-        return {"query_type": "my_stats"}
+    if plate_match:
+        plate = plate_match.group(1).replace("-", "").replace(" ", "")
+        return {"query_type": "search_plate", "plate": plate}
     
-    elif any(word in text for word in ["buscar", "busca", "encontrar", "placa"]):
-        # Extraer placa (formato: ABC123 o ABC-123)
-        import re
-        plate_match = re.search(r'\b([A-Z]{3}[-\s]?\d{3})\b', text.upper())
-        if plate_match:
-            plate = plate_match.group(1).replace("-", "").replace(" ", "")
-            return {"query_type": "search_plate", "plate": plate}
+    # Si menciona palabras clave de búsqueda pero no encontró placa en formato estándar
+    # Buscar cualquier combinación de letras y números que parezca una placa
+    if any(word in text for word in ["buscar", "busca", "encontrar", "ver", "estado", "consultar", "revisar", "verificar"]):
+        # Intentar reconstruir placa de texto fragmentado
+        # Ej: "buscar carro a vd 1-1-1" → extraer "avd111"
+        palabras = user_input.upper().split()
+        
+        # Buscar índice de palabra clave
+        keyword_idx = -1
+        for i, palabra in enumerate(palabras):
+            if any(kw in palabra.lower() for kw in ["buscar", "ver", "estado", "consultar"]):
+                keyword_idx = i
+                break
+        
+        # Si encontramos keyword, tomar todo lo que viene después
+        if keyword_idx >= 0:
+            resto = " ".join(palabras[keyword_idx + 1:])
+            # Limpiar palabras comunes
+            resto = resto.replace("CARRO", "").replace("PLACA", "").replace("EL", "").replace("LA", "")
+            # Reconstruir placa quitando espacios y guiones
+            placa_reconstruida = reconstruct_plate(resto)
+            
+            # Verificar si tiene formato de placa (letras + números, mínimo 5 caracteres)
+            if re.search(r'[A-Z]{2,}', placa_reconstruida) and re.search(r'\d{2,}', placa_reconstruida):
+                if len(placa_reconstruida) >= 5 and len(placa_reconstruida) <= 7:
+                    return {"query_type": "search_plate", "plate": placa_reconstruida}
+        
+        # Método anterior: buscar palabras con letras Y números
+        for palabra in reversed(palabras):  # Revisar desde el final
+            # Limpiar guiones y espacios
+            palabra_limpia = palabra.replace("-", "").replace(" ", "")
+            # Verificar si tiene letras Y números
+            if re.search(r'[A-Z]{2,}', palabra_limpia) and re.search(r'\d{2,}', palabra_limpia):
+                # Extraer solo letras y números
+                placa_extraida = re.sub(r'[^A-Z0-9]', '', palabra_limpia)
+                if len(placa_extraida) >= 5:  # Al menos 5 caracteres para ser placa válida
+                    return {"query_type": "search_plate", "plate": placa_extraida}
+        
+        # Si mencionó buscar pero no encontramos placa
         return {"query_type": "search_plate", "plate": None}
     
-    elif any(word in text for word in ["historial", "salidas", "cerrados"]):
-        return {"query_type": "history"}
+    # Si menciona "placa" específicamente
+    if "placa" in text:
+        # Buscar cualquier combinación de letras y números después de "placa"
+        placa_match = re.search(r'placa\s+([A-Z0-9]+)', user_input.upper())
+        if placa_match:
+            return {"query_type": "search_plate", "plate": placa_match.group(1)}
+        return {"query_type": "search_plate", "plate": None}
     
-    elif any(word in text for word in ["estadisticas", "resumen", "dia"]):
-        return {"query_type": "daily_stats"}
+    # ========== COMANDOS DE TICKETS (más específicos primero) ==========
     
-    elif any(word in text for word in ["cupos", "espacios", "disponibles"]):
-        return {"query_type": "available_spaces"}
+    # Mis tickets
+    if any(word in text for word in ["mis tickets", "mis tiquets", "mis boletas", "tickets del turno"]):
+        if any(word in text for word in ["abiertos", "abiertas", "activos", "activas"]):
+            return {"query_type": "my_open_tickets"}
+        return {"query_type": "my_tickets"}
     
-    elif any(word in text for word in ["ultima", "reciente", "placa detectada"]):
+    # Resumen/estadísticas personales
+    if any(word in text for word in ["mi resumen", "mi turno", "mis estadisticas", "resumen del turno", "cuanto he ganado", "cuanto gane", "mis ganancias", "total ganado", "dinero", "recaudado"]):
+        return {"query_type": "my_stats"}
+    
+    # Tickets abiertos
+    if any(word in text for word in ["tickets abiertos", "tiquets abiertos"]):
+        return {"query_type": "my_open_tickets"}
+    
+    # Carros/vehículos activos o adentro (sin "cuántos")
+    if any(word in text for word in ["carros", "vehiculos", "motos", "autos"]):
+        if any(word in text for word in ["abiertos", "abiertas", "activos", "activas", "adentro", "dentro", "estacionados", "parqueados"]):
+            return {"query_type": "my_open_tickets"}
+    
+    # ========== CANTIDADES ==========
+    
+    if any(word in text for word in ["cuantos", "cuantas", "total", "cantidad"]):
+        # Si pregunta explícitamente por el TOTAL de tickets históricos
+        if any(word in text for word in ["total de tickets", "total de tiquets", "todos los tickets", "todos los tiquets", "total tickets", "total tiquets", "historico"]):
+            return {"query_type": "my_tickets"}
+        
+        # Si menciona "tickets" o "tiquets" con "total" → total histórico
+        if "total" in text and any(word in text for word in ["tickets", "tiquets", "boletas"]):
+            return {"query_type": "my_tickets"}
+        
+        # Si pregunta por carros/vehículos/motos con "hay" → significa activos/adentro
+        if any(word in text for word in ["carros", "vehiculos", "motos", "autos"]) and "hay" in text:
+            if not re.search(r'[A-Z]{2,}\d{2,}', text.upper().replace("-", "").replace(" ", "")):
+                return {"query_type": "my_open_tickets"}
+        
+        # Si pregunta explícitamente por abiertos/activos/adentro
+        if any(word in text for word in ["abiertos", "abiertas", "activos", "activas", "adentro", "dentro", "estacionados", "parqueados"]):
+            return {"query_type": "my_open_tickets"}
+        
+        # Por defecto, "cuántos" sin más contexto → tickets abiertos (lo más común)
+        return {"query_type": "my_open_tickets"}
+    
+    # ========== ÚLTIMA DETECCIÓN/TICKET ==========
+    
+    if any(word in text for word in ["ultimo", "ultima", "reciente", "mas reciente", "ultimo registro", "ultima deteccion", "ultimo ticket", "ultimo vehiculo", "ultimo ingreso", "ultimo carro"]):
         return {"query_type": "last_detection"}
     
-    else:
-        return {"query_type": "unknown"}
+    # ========== USUARIOS ==========
+    
+    if any(word in text for word in ["usuarios", "lista de usuarios", "mostrar usuarios", "cuantos usuarios"]):
+        return {"query_type": "list_users"}
+    
+    # ========== DEFAULT ==========
+    
+    return {"query_type": "unknown"}
 
 def interpret(user_input: str) -> Dict[str, Any]:
     """

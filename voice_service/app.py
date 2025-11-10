@@ -14,8 +14,9 @@ app = FastAPI(title="Voice Command Service", version="1.0")
 
 # Cargar modelo Whisper al iniciar
 try:
-    model = whisper.load_model("base")
-    logger.info("✅ Modelo Whisper cargado correctamente")
+    logger.info("🔄 Cargando modelo Whisper medium (esto puede tardar unos minutos la primera vez)...")
+    model = whisper.load_model("medium")
+    logger.info("✅ Modelo Whisper medium cargado correctamente")
 except Exception as e:
     logger.error(f"❌ Error al cargar Whisper: {e}")
     model = None
@@ -156,5 +157,5 @@ def health_check():
     """Verifica el estado del servicio"""
     return {
         "status": "healthy",
-        "whisper_model": "base" if model else "not_loaded"
+        "whisper_model": "medium" if model else "not_loaded"
     }

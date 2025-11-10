@@ -27,3 +27,23 @@ class TicketResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class TicketDetailResponse(BaseModel):
+    """Respuesta detallada de ticket con información del vehículo y cliente"""
+    id: int
+    vehiculo_id: int
+    turno_id: Optional[int]
+    hora_entrada: datetime
+    hora_salida: Optional[datetime]
+    monto_total: Optional[float]
+    estado: str
+    # Información del vehículo
+    placa: Optional[str] = None
+    # Información del cliente (si existe)
+    cliente_nombre: Optional[str] = None
+    cliente_telefono: Optional[str] = None
+    cliente_email: Optional[str] = None
+
+    class Config:
+        from_attributes = True

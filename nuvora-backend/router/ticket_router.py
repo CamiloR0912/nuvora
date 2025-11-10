@@ -1,10 +1,11 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from config.db import SessionLocal
-from schema.ticket_schema import TicketEntrada, TicketSalidaPorPlaca, TicketResponse
+from schema.ticket_schema import TicketEntrada, TicketSalidaPorPlaca, TicketResponse, TicketDetailResponse
 from config.auth import get_current_user, require_admin
 from model.tickets import Ticket
 from model.vehiculos import Vehiculo
+from model.clientes import Cliente
 from model.turnos import Turno
 from model.users import User
 from typing import List
@@ -145,4 +146,92 @@ def listar_todos_tickets(db: Session = Depends(get_db), admin: User = Depends(re
 	Lista TODOS los tickets de todos los turnos (solo administradores).
 	"""
 	return db.query(Ticket).all()
+
+
+@ticket_router.get("/detallados", response_model=List[TicketDetailResponse])
+def listar_tickets_detallados(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+	"""
+	Lista los tickets del usuario con detalles (placa del vehículo y datos del cliente si existen).
+	Más útil para el voice service y consultas rápidas.
+	"""
+	# Obtener los IDs de los turnos del usuario
+	if current_user.rol == 'admin':
+		tickets = db.query(Ticket).all()
+	else:
+		turnos_usuario = db.query(Turno.id).filter(Turno.usuario_id == current_user.id).all()
+		turno_ids = [t[0] for t in turnos_usuario]
+		tickets = db.query(Ticket).filter(Ticket.turno_id.in_(turno_ids)).all()
+	
+	# Enriquecer con datos del vehículo y cliente
+	tickets_detallados = []
+	for ticket in tickets:
+		# Obtener vehículo
+		vehiculo = db.query(Vehiculo).filter(Vehiculo.id == ticket.vehiculo_id).first()
+		placa = vehiculo.placa if vehiculo else None
+		
+		# Por ahora, no tenemos relación directa entre vehiculos y clientes
+		# Esto se puede agregar en el futuro
+		ticket_detallado = TicketDetailResponse(
+			id=ticket.id,
+			vehiculo_id=ticket.vehiculo_id,
+			turno_id=ticket.turno_id,
+			hora_entrada=ticket.hora_entrada,
+			hora_salida=ticket.hora_salida,
+			monto_total=ticket.monto_total,
+			estado=ticket.estado,
+			placa=placa,
+			cliente_nombre=None,
+			cliente_telefono=None,
+			cliente_email=None
+		)
+		tickets_detallados.append(ticket_detallado)
+	
+	return tickets_detallados
+
+
+@ticket_router.get("/buscar-placa/{placa}", response_model=TicketDetailResponse)
+def buscar_ticket_por_placa(placa: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+	"""
+	Busca un ticket ABIERTO por placa en los turnos del usuario.
+	Devuelve información detallada del ticket, vehículo y cliente.
+	"""
+	# Obtener vehículo por placa
+	vehiculo = db.query(Vehiculo).filter(Vehiculo.placa == placa.upper()).first()
+	
+	if not vehiculo:
+		raise HTTPException(status_code=404, detail=f"No se encontró vehículo con placa {placa}")
+	
+	# Buscar ticket abierto en los turnos del usuario
+	if current_user.rol == 'admin':
+		ticket = db.query(Ticket).filter(
+			Ticket.vehiculo_id == vehiculo.id,
+			Ticket.estado == 'abierto'
+		).first()
+	else:
+		turnos_usuario = db.query(Turno.id).filter(Turno.usuario_id == current_user.id).all()
+		turno_ids = [t[0] for t in turnos_usuario]
+		
+		ticket = db.query(Ticket).filter(
+			Ticket.vehiculo_id == vehiculo.id,
+			Ticket.turno_id.in_(turno_ids),
+			Ticket.estado == 'abierto'
+		).first()
+	
+	if not ticket:
+		raise HTTPException(status_code=404, detail=f"No hay ticket abierto para la placa {placa} en tus turnos")
+	
+	# Por ahora, no hay relación directa entre vehiculos y clientes
+	return TicketDetailResponse(
+		id=ticket.id,
+		vehiculo_id=ticket.vehiculo_id,
+		turno_id=ticket.turno_id,
+		hora_entrada=ticket.hora_entrada,
+		hora_salida=ticket.hora_salida,
+		monto_total=ticket.monto_total,
+		estado=ticket.estado,
+		placa=vehiculo.placa,
+		cliente_nombre=None,
+		cliente_telefono=None,
+		cliente_email=None
+	)
 

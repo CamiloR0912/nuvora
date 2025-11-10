@@ -113,39 +113,41 @@ class BackendClient:
     
     def get_my_tickets(self, user_jwt: str) -> Optional[list]:
         """
-        Obtiene los tickets del usuario autenticado.
+        Obtiene los tickets del usuario autenticado CON DETALLES (placa, cliente, etc).
         Requiere JWT del usuario.
         """
-        return self.get_tickets(user_jwt=user_jwt)
+        result = self._make_request("GET", "/tickets/detallados", user_jwt=user_jwt)
+        return result if result else []
     
     def get_my_open_tickets(self, user_jwt: str) -> Optional[list]:
         """
-        Obtiene solo los tickets abiertos del usuario autenticado.
+        Obtiene solo los tickets abiertos del usuario autenticado con detalles.
         Requiere JWT del usuario.
         """
-        tickets = self.get_tickets(user_jwt=user_jwt)
+        tickets = self.get_my_tickets(user_jwt=user_jwt)
         if tickets:
             return [t for t in tickets if t.get("estado") == "abierto"]
         return []
+    
+    def search_ticket_by_plate(self, placa: str, user_jwt: str) -> Optional[Dict[Any, Any]]:
+        """
+        Busca un ticket abierto por placa en los turnos del usuario.
+        Devuelve información detallada del ticket, vehículo y cliente.
+        
+        Args:
+            placa: Placa del vehículo
+            user_jwt: Token JWT del usuario
+        
+        Returns:
+            Ticket con detalles o None si no se encuentra
+        """
+        result = self._make_request("GET", f"/tickets/buscar-placa/{placa}", user_jwt=user_jwt)
+        return result
     
     def get_ticket_by_id(self, ticket_id: int) -> Optional[Dict[Any, Any]]:
         """Obtiene un ticket específico"""
         result = self._make_request("GET", f"/tickets/{ticket_id}")
         return result
-    
-    # ========== MÉTODOS PARA EVENTOS DE VEHÍCULOS ==========
-    
-    def get_vehicle_events_count(self) -> int:
-        """Obtiene el conteo de eventos de vehículos detectados"""
-        result = self._make_request("GET", "/vehicle-events/count")
-        if result:
-            return result.get("count", 0)
-        return 0
-    
-    def get_vehicle_events_recent(self, limit: int = 10) -> Optional[list]:
-        """Obtiene eventos recientes de vehículos"""
-        result = self._make_request("GET", "/vehicle-events/latest", params={"limit": limit})
-        return result if result else []
     
     # ========== MÉTODOS PARA CLIENTES ==========
     
