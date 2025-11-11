@@ -67,8 +67,24 @@ export default function StartShiftPage() {
         return;
       }
 
+      console.log("Turno iniciado exitosamente:", data);
+
       // Reemplazar token por el que incluye turno_id
-      localStorage.setItem("token", data.access_token);
+      const newToken = data.access_token;
+      localStorage.setItem("token", newToken);
+
+      // Guardar información del turno en localStorage
+      const turnoData = {
+        id: data.id,
+        usuario_id: data.usuario_id,
+        fecha_inicio: data.fecha_inicio,
+        monto_inicial: data.monto_inicial,
+        estado: data.estado,
+        observaciones: data.observaciones
+      };
+      localStorage.setItem("turno", JSON.stringify(turnoData));
+
+      console.log("Token actualizado y turno guardado, navegando a dashboard");
       navigate("/dashboard", { replace: true });
     } catch (err) {
       setError("Error de red o servidor: " + (err?.message || ""));
