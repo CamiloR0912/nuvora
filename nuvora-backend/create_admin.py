@@ -13,7 +13,7 @@ try:
         db.commit()
         print('🗑️ Usuario admin anterior eliminado')
     
-    # Crear nuevo admin con hash correcto
+    # Crear nuevo admin con hash correcto (mismo método que usa el login)
     u = User(
         nombre='Administrador Principal',
         rol='admin',
@@ -23,11 +23,16 @@ try:
     )
     db.add(u)
     db.commit()
+    db.refresh(u)
     print('✅ Usuario admin creado correctamente')
     print('📝 Usuario: admin')
     print('🔑 Password: 000')
+    print(f'👤 ID: {u.id}')
+    print(f'✔️  Activo: {u.activo}')
 except Exception as e:
     print(f'❌ Error: {e}')
+    import traceback
+    traceback.print_exc()
     db.rollback()
 finally:
     db.close()

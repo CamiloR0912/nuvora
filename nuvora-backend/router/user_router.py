@@ -59,12 +59,13 @@ def create_user(data: UserCreate, db: Session = Depends(get_db), admin: User = D
         nombre=data.nombre,
         rol=data.rol,
         usuario=data.usuario,
-        password_hash=hashed_password
+        password_hash=hashed_password,
+        activo=True
     )
     db.add(new_user)
     db.commit()
     db.refresh(new_user)
-    return {"message": "Usuario creado correctamente", "usuario": new_user.usuario}
+    return new_user
 
 
 # 5️⃣ Login - devuelve JWT token
