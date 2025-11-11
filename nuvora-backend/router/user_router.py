@@ -25,7 +25,6 @@ def get_db():
 class LoginRequest(BaseModel):
     username: str
     password: str
-    monto_inicial: float
 
 
 # 1️⃣ Obtener todos los usuarios (solo admins)
@@ -94,7 +93,6 @@ def login(data: LoginRequest, db: Session = Depends(get_db)):
         nuevo_turno = Turno(
             usuario_id=usuario_db.id,
             fecha_inicio=datetime.now(),
-            monto_inicial=data.monto_inicial,
             estado="abierto",
             observaciones="Inicio automático al iniciar sesión"
         )
@@ -118,7 +116,6 @@ def login(data: LoginRequest, db: Session = Depends(get_db)):
         "turno": {
             "id": turno_activo.id,
             "fecha_inicio": turno_activo.fecha_inicio,
-            "monto_inicial": turno_activo.monto_inicial,
             "estado": turno_activo.estado,
         }
     }

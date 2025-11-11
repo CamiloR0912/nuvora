@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { ParkingCircle } from "lucide-react";
-import jwtDecode from "jwt-decode";
+import { jwtDecode } from "jwt-decode";
 
 function toErrorMessage(body, fallback = "Error en autenticación") {
   if (!body) return fallback;
