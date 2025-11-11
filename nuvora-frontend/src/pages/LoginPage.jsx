@@ -1,59 +1,117 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { ParkingCircle } from "lucide-react";
+import { jwtDecode } from "jwt-decode";
+
+function toErrorMessage(body, fallback = "Error en autenticación") {
+  if (!body) return fallback;
+  const detail = body.detail ?? body;
+  if (typeof detail === "string") return detail;
+  if (Array.isArray(detail)) return detail.map((d) => d?.msg || JSON.stringify(d)).join(", ");
+  try { return JSON.stringify(detail); } catch { return fallback; }
+}
 
 export default function LoginPage() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
-  const [montoInicial, setMontoInicial] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+  const [loading, setLoading]   = useState(false);
+  const [error, setError]       = useState("");
   const navigate = useNavigate();
+
+  async function tryLoginJson(payload) {
+    if (!payload.username || !payload.password) {
+      throw new Error("Usuario y contraseña son obligatorios");
+    }
+
+    const res = await fetch("/api/users/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify(payload),
+    });
+
+    if (res.status === 422) {
+      const errorBody = await res.json().catch(() => ({}));
+      throw new Error(toErrorMessage(errorBody, "Datos inválidos en el JSON"));
+    }
+
+    return res;
+  }
 
   async function handleSubmit(e) {
     e.preventDefault();
     setError("");
     setLoading(true);
 
-    const payload = {
-      username: username.trim(),
-      password,
-      monto_inicial: montoInicial ? parseFloat(montoInicial) : 0.0,
-    };
-
     try {
-      const res = await fetch("/api/users/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-
+      const res = await tryLoginJson({ username: username.trim(), password });
       if (!res.ok) {
-        let msg = "Error en autenticación";
+        const text = await res.text().catch(() => "");
+        let msg = text;
         try {
-          const body = await res.json();
-          if (body && body.detail) msg = body.detail;
-        } catch (_) {}
-        setError(msg);
-        setLoading(false);
+          const body = text ? JSON.parse(text) : null;
+          msg = toErrorMessage(body, "Error en autenticación");
+        } catch {}
+
+        setError(msg || "Error en autenticación");
         return;
       }
 
-      const data = await res.json();
-      if (!data || !data.access_token) {
+      const data = await res.json().catch(() => null);
+      if (!data || (!data.access_token && !data.token)) {
         setError("Respuesta inválida del servidor");
-        setLoading(false);
         return;
       }
 
-      // Guardar token e información del usuario y turno
-      localStorage.setItem("token", data.access_token);
-      localStorage.setItem("usuario", JSON.stringify(data.usuario));
-      localStorage.setItem("turno", JSON.stringify(data.turno));
+      const accessToken = data.access_token || data.token;
+      localStorage.setItem("token", accessToken);
 
-      navigate("/dashboard");
+      // Decodificar el token para verificar turno_id
+      let hasTurno = false;
+      try {
+        const decodedToken = jwtDecode(accessToken);
+        console.log("Token decodificado:", decodedToken);
+        hasTurno = decodedToken.turno_id != null;
+        console.log("¿Tiene turno?", hasTurno, "turno_id:", decodedToken.turno_id);
+      } catch (err) {
+        console.error("Error al decodificar el token JWT:", err);
+      }
+
+      // Obtener datos del usuario (no bloqueante)
+      fetch("/api/users/me", {
+        headers: { Authorization: "Bearer " + accessToken, Accept: "application/json" },
+      })
+        .then(meRes => meRes.ok ? meRes.json() : null)
+        .then(me => {
+          if (me) localStorage.setItem("usuario", JSON.stringify(me));
+          else localStorage.removeItem("usuario");
+        })
+        .catch(() => localStorage.removeItem("usuario"));
+
+      // Solo intentar obtener turno si el token tiene turno_id (no bloqueante)
+      if (hasTurno) {
+        fetch("/api/turnos/actual", {
+          headers: { Authorization: "Bearer " + accessToken, Accept: "application/json" },
+        })
+          .then(turnoRes => turnoRes.ok ? turnoRes.json() : null)
+          .then(turno => {
+            if (turno) localStorage.setItem("turno", JSON.stringify(turno));
+            else localStorage.removeItem("turno");
+          })
+          .catch(() => localStorage.removeItem("turno"));
+      } else {
+        localStorage.removeItem("turno");
+      }
+
+      // Redirigir inmediatamente según tenga o no turno activo
+      console.log("Navegando a:", hasTurno ? "/dashboard" : "/start-shift");
+      console.log("Token guardado en localStorage:", localStorage.getItem("token"));
+      
+      const targetRoute = hasTurno ? "/dashboard" : "/start-shift";
+      console.log("Ejecutando navigate a:", targetRoute);
+      navigate(targetRoute, { replace: true });
+      console.log("Navigate ejecutado");
     } catch (err) {
-      setError("Error de red o servidor: " + (err.message || ""));
+      setError("Error de red o servidor: " + (err?.message || ""));
     } finally {
       setLoading(false);
     }
@@ -88,17 +146,6 @@ export default function LoginPage() {
             placeholder="Contraseña"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-            required
-          />
-
-          <input
-            name="montoInicial"
-            type="number"
-            step="0.01"
-            placeholder="Monto inicial (ej: 20000)"
-            value={montoInicial}
-            onChange={(e) => setMontoInicial(e.target.value)}
             className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
             required
           />

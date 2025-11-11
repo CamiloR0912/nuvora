@@ -25,7 +25,6 @@ def get_db():
 class LoginRequest(BaseModel):
     username: str
     password: str
-    monto_inicial: float
 
 
 # 1️⃣ Obtener todos los usuarios (solo admins)
@@ -78,48 +77,26 @@ def create_user(data: UserCreate, db: Session = Depends(get_db), admin: User = D
 
 # 5️⃣ Login con creación automática de turno
 @user.post("/login")
-def login(data: LoginRequest, db: Session = Depends(get_db)):
-    usuario_db = db.query(User).filter(User.usuario == data.username).first()
-
-    if not usuario_db or not check_password_hash(usuario_db.password_hash, data.password):
+def login(credentials: LoginRequest, db: Session = Depends(get_db)):
+    usuario_db = db.query(User).filter(User.usuario == credentials.username).first()
+    if not usuario_db or not check_password_hash(usuario_db.password_hash, credentials.password):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Credenciales inválidas")
-
-    # Buscar turno activo
+    
+    # Buscar turno activo del usuario
+    from model.turnos import Turno
     turno_activo = db.query(Turno).filter(
         Turno.usuario_id == usuario_db.id,
-        Turno.estado == "abierto"
+        Turno.estado == 'abierto'
     ).first()
-
-    # Si no hay turno activo, crear uno nuevo
-    if not turno_activo:
-        nuevo_turno = Turno(
-            usuario_id=usuario_db.id,
-            fecha_inicio=datetime.now(),
-            monto_inicial=data.monto_inicial,
-            estado="abierto",
-            observaciones="Inicio automático al iniciar sesión"
-        )
-        db.add(nuevo_turno)
-        db.commit()
-        db.refresh(nuevo_turno)
-        turno_activo = nuevo_turno
-
-    # Crear JWT con info del usuario y turno
-    token_data = {"sub": str(usuario_db.id), "turno_id": turno_activo.id}
-    access_token = create_access_token(token_data)
-
+    
+    # Crear token con user_id y turno_id (si existe)
+    token_data = {"sub": str(usuario_db.id)}
+    if turno_activo:
+        token_data["turno_id"] = turno_activo.id
+    
+    token = create_access_token(token_data)
     return {
-        "access_token": access_token,
+        "access_token": token, 
         "token_type": "bearer",
-        "usuario": {
-            "id": usuario_db.id,
-            "nombre": usuario_db.nombre,
-            "rol": usuario_db.rol,
-        },
-        "turno": {
-            "id": turno_activo.id,
-            "fecha_inicio": turno_activo.fecha_inicio,
-            "monto_inicial": turno_activo.monto_inicial,
-            "estado": turno_activo.estado,
-        }
+        "turno_id": turno_activo.id if turno_activo else None
     }

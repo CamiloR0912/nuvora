@@ -3,6 +3,12 @@ from typing import Optional
 from datetime import datetime
 
 
+class IniciarTurnoRequest(BaseModel):
+	"""Request para iniciar un turno"""
+	monto_inicial: float
+	observaciones: Optional[str] = None
+
+
 class TurnoCreate(BaseModel):
 	usuario_id: Optional[int] = None
 	fecha_inicio: Optional[datetime] = None

@@ -26,7 +26,7 @@ export default function Sidebar() {
 
     try {
       // 🔹 Cerrar turno en el backend
-      const res = await fetch("https://nuvora/api/turnos/cerrar", {
+      const res = await fetch("/api/turnos/cerrar", {
         method: "POST",
         headers: {
           "Authorization": `Bearer ${token}`,
@@ -44,6 +44,8 @@ export default function Sidebar() {
     } finally {
       // 🔹 Limpiar token y redirigir
       localStorage.removeItem("token");
+      localStorage.removeItem("usuario");
+      localStorage.removeItem("turno");
       navigate("/login");
     }
   };

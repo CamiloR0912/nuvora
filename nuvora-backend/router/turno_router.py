@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from config.db import SessionLocal
 from config.auth import get_current_user, require_admin, require_cajero, create_access_token
 from model.users import User
-from schema.turno_schema import TurnoCreate, TurnoResponse, TurnoIniciadoResponse
+from schema.turno_schema import TurnoCreate, TurnoResponse, TurnoIniciadoResponse, IniciarTurnoRequest
 from model.turnos import Turno
 from typing import List
 from datetime import datetime
@@ -21,8 +21,7 @@ def get_db():
 
 @turno_router.post("/iniciar", response_model=TurnoIniciadoResponse)
 def iniciar_turno(
-	monto_inicial: float,
-	observaciones: str = None,
+	data: IniciarTurnoRequest,
 	db: Session = Depends(get_db),
 	current_user: User = Depends(get_current_user)
 ):
@@ -47,8 +46,8 @@ def iniciar_turno(
 	nuevo_turno = Turno(
 		usuario_id=current_user.id,
 		fecha_inicio=datetime.now(),
-		monto_inicial=monto_inicial,
-		observaciones=observaciones,
+		monto_inicial=data.monto_inicial,
+		observaciones=data.observaciones,
 		estado='abierto'
 	)
 	db.add(nuevo_turno)
