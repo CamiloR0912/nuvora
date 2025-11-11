@@ -1,11 +1,21 @@
 from fastapi import FastAPI, Response, HTTPException
 from fastapi.responses import StreamingResponse, JSONResponse
+from fastapi.middleware.cors import CORSMiddleware
 from camera_manager import CameraManager
 from stream_generator import generate_mjpeg
 import os
 import cv2
 
 app = FastAPI(title="Camera Service", version="1.0")
+
+# Habilitar CORS para permitir acceso desde el frontend
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # En producción, especifica los dominios permitidos
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 camera_manager = CameraManager()
 

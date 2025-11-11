@@ -1,8 +1,10 @@
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from router.user_router import user
 from router.turno_router import turno_router
 from router.ticket_router import ticket_router
 from router.client_router import client_router
+from router.events_router import events_router
 from config.db import Base, engine
 from threading import Thread
 from consumer import VehicleEventConsumer
@@ -20,12 +22,22 @@ logger = logging.getLogger(__name__)
 
 app = FastAPI(title="SmartPark API", redirect_slashes=False)
 
+# Habilitar CORS para permitir conexiones SSE desde el frontend
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # En producción, especifica los dominios permitidos
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 Base.metadata.create_all(bind=engine)
 
 app.include_router(user, prefix="/api")
 app.include_router(turno_router, prefix="/api")
 app.include_router(ticket_router, prefix="/api")
 app.include_router(client_router, prefix="/api")
+app.include_router(events_router, prefix="/api")
 
 
 def start_rabbitmq_consumer():

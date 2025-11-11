@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { StatCard } from '../components/StatCard';
 import { ParkingSpaceGrid } from '../components/ParkingSpaceGrid';
 import { VehicleList } from '../components/VehicleList';
@@ -6,6 +6,7 @@ import { RecentActivity } from '../components/RecentActivity';
 import Detection from '../components/Detection';
 import { Car, ParkingCircle, Clock, Mic } from 'lucide-react';
 import { VoiceControlPanel } from '../components/VoiceControlPanel';
+import { useSSE } from '../api/useSSE';
 import axios from 'axios';
 
 // Simulación de cupos (sigue igual, puedes cambiar por tu backend real luego)
@@ -17,13 +18,48 @@ const mockParkingSpaces = [
   { id: 5, floor: 2, zone: 'C', space_number: 'C2', is_occupied: false },
 ];
 
-// Usamos el componente `VoiceControlPanel` real importado desde /components
-
 export default function HomePage() {
   const [parkingSpaces, setParkingSpaces] = useState([]);
   const [vehicles, setVehicles] = useState([]);
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
+  
+  // Estados para detecciones en tiempo real
+  const [lastDetection, setLastDetection] = useState(null);
+  const [recentDetections, setRecentDetections] = useState([]);
+
+  // Obtener token del localStorage
+  const token = localStorage.getItem('token');
+
+  // Callback para manejar mensajes SSE
+  const handleSSEMessage = useCallback((data) => {
+    if (data.event_type === 'vehicle_detected') {
+      const detection = {
+        placa: data.placa,
+        timestamp: data.timestamp || data.hora_entrada, // Usar timestamp del SSE
+        vehicle_type: data.vehicle_type || 'car'
+      };
+      
+      // Actualizar última detección
+      setLastDetection(detection);
+      
+      // Agregar a detecciones recientes (máximo 5)
+      setRecentDetections(prev => [detection, ...prev].slice(0, 5));
+      
+      // Opcional: Reproducir sonido de notificación
+      // const audio = new Audio('/notification.mp3');
+      // audio.play();
+      
+      console.log('🚗 Vehículo detectado:', detection);
+    }
+  }, []);
+
+  // Conectar a eventos SSE
+  const { isConnected, error } = useSSE(
+    'http://localhost:8000/api/events/stream',
+    handleSSEMessage,
+    token
+  );
 
   useEffect(() => {
     // Cargar cupos simulados y datos reales de vehículos/eventos
@@ -100,6 +136,13 @@ export default function HomePage() {
 
   return (
     <div>
+      {/* Indicador de conexión SSE */}
+      {error && (
+        <div className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded-lg">
+          ⚠️ Error de conexión con eventos en tiempo real: {error}
+        </div>
+      )}
+      
       {/* Tarjetas de estadísticas principales */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
         <StatCard title="Total de Cupos" value={stats.totalSpaces} icon={ParkingCircle} subtitle="Capacidad total" />
@@ -111,7 +154,10 @@ export default function HomePage() {
       {/* Aquí va el Detection, ocupa todo el ancho izquierdo del grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
         <div className="lg:col-span-2">
-          <Detection />
+          <Detection 
+            lastDetection={lastDetection} 
+            recentDetections={recentDetections}
+          />
         </div>
         <div className="flex flex-col space-y-6">
           <RecentActivity events={events} />

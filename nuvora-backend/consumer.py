@@ -12,7 +12,6 @@ logger = logging.getLogger(__name__)
 class VehicleEventConsumer:
     def __init__(self):
         self.consumer = RabbitMQConsumer(queue_name='ticket_entries')
-        self.db = next(get_db())
     
     def process_vehicle_event(self, message: dict):
         """
@@ -28,6 +27,9 @@ class VehicleEventConsumer:
             'timestamp': '2024-01-01T12:00:00'
         }
         """
+        # Crear una nueva sesión para cada mensaje
+        db = next(get_db())
+        
         try:
             placa = message.get('placa')
             turno_id = message.get('turno_id')
@@ -38,23 +40,23 @@ class VehicleEventConsumer:
                 return
             
             # Buscar o crear vehículo
-            vehiculo = self.db.query(Vehiculo).filter(Vehiculo.placa == placa).first()
+            vehiculo = db.query(Vehiculo).filter(Vehiculo.placa == placa).first()
             if not vehiculo:
                 vehiculo = Vehiculo(placa=placa)
-                self.db.add(vehiculo)
-                self.db.commit()
-                self.db.refresh(vehiculo)
+                db.add(vehiculo)
+                db.commit()
+                db.refresh(vehiculo)
                 logger.info(f"🚗 Nuevo vehículo: {placa}")
             
-            # Verificar si ya existe ticket abierto
-            ticket_existente = self.db.query(Ticket).filter(
+            # Verificar si ya existe ticket abierto (solo ABIERTO, no cerrado)
+            ticket_existente = db.query(Ticket).filter(
                 Ticket.vehiculo_id == vehiculo.id,
                 Ticket.turno_id == turno_id,
                 Ticket.estado == 'abierto'
             ).first()
             
             if ticket_existente:
-                logger.warning(f"⚠️ Ticket ya existe para {placa} en turno {turno_id}")
+                logger.info(f"ℹ️ Vehículo {placa} ya tiene un ticket abierto (ID: {ticket_existente.id}) en turno {turno_id}. No se crea duplicado.")
                 return
             
             # Crear ticket
@@ -65,15 +67,28 @@ class VehicleEventConsumer:
                 estado='abierto'
             )
             
-            self.db.add(nuevo_ticket)
-            self.db.commit()
-            self.db.refresh(nuevo_ticket)
+            db.add(nuevo_ticket)
+            db.commit()
+            db.refresh(nuevo_ticket)
             
             logger.info(f"✅ Ticket creado: ID {nuevo_ticket.id}, Placa: {placa}, Turno: {turno_id}")
             
+            # Notificar a los clientes SSE
+            try:
+                from router.events_router import update_last_detection
+                update_last_detection(
+                    placa=placa,
+                    timestamp=nuevo_ticket.hora_entrada.isoformat(),
+                    vehicle_type=message.get('vehicle_type', 'car')
+                )
+            except Exception as e:
+                logger.error(f"⚠️ Error notificando SSE: {e}")
+            
         except Exception as e:
-            self.db.rollback()
+            db.rollback()
             logger.error(f"❌ Error procesando ticket: {e}", exc_info=True)
+        finally:
+            db.close()
     
     def start(self):
         self.consumer.connect()
