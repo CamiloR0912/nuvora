@@ -8,5 +8,12 @@ export default defineConfig({
   },
   server: {
     allowedHosts: ['nuvora'],
+    proxy: {
+      '/api': {
+        target: 'https://nuvora',
+        changeOrigin: true,
+        secure: false,
+      }
+    }
   },
 });

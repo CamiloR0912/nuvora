@@ -23,7 +23,7 @@ export default function LoginPage() {
       throw new Error("Usuario y contraseña son obligatorios");
     }
 
-    const res = await fetch("https://nuvora/api/users/login", {
+    const res = await fetch("/api/users/login", {
       method: "POST",
       headers: { "Content-Type": "application/json", Accept: "application/json" },
       body: JSON.stringify(payload),
@@ -65,42 +65,51 @@ export default function LoginPage() {
       const accessToken = data.access_token || data.token;
       localStorage.setItem("token", accessToken);
 
-      try {
-        const meRes = await fetch("/api/users/me", {
-          headers: { Authorization: "Bearer " + accessToken, Accept: "application/json" },
-        });
-        if (meRes.ok) {
-          const me = await meRes.json();
-          localStorage.setItem("usuario", JSON.stringify(me));
-        } else {
-          localStorage.removeItem("usuario");
-        }
-
-        const turnoRes = await fetch("/api/turnos/actual", {
-          headers: { Authorization: "Bearer " + accessToken, Accept: "application/json" },
-        });
-        if (turnoRes.ok) {
-          const turno = await turnoRes.json();
-          localStorage.setItem("turno", JSON.stringify(turno));
-        } else {
-          localStorage.removeItem("turno");
-        }
-      } catch (_) {}
-
       // Decodificar el token para verificar turno_id
       let hasTurno = false;
       try {
         const decodedToken = jwtDecode(accessToken);
+        console.log("Token decodificado:", decodedToken);
         hasTurno = decodedToken.turno_id != null;
+        console.log("¿Tiene turno?", hasTurno, "turno_id:", decodedToken.turno_id);
       } catch (err) {
         console.error("Error al decodificar el token JWT:", err);
       }
 
+      // Obtener datos del usuario (no bloqueante)
+      fetch("/api/users/me", {
+        headers: { Authorization: "Bearer " + accessToken, Accept: "application/json" },
+      })
+        .then(meRes => meRes.ok ? meRes.json() : null)
+        .then(me => {
+          if (me) localStorage.setItem("usuario", JSON.stringify(me));
+          else localStorage.removeItem("usuario");
+        })
+        .catch(() => localStorage.removeItem("usuario"));
+
+      // Solo intentar obtener turno si el token tiene turno_id (no bloqueante)
       if (hasTurno) {
-        navigate("/dashboard");
+        fetch("/api/turnos/actual", {
+          headers: { Authorization: "Bearer " + accessToken, Accept: "application/json" },
+        })
+          .then(turnoRes => turnoRes.ok ? turnoRes.json() : null)
+          .then(turno => {
+            if (turno) localStorage.setItem("turno", JSON.stringify(turno));
+            else localStorage.removeItem("turno");
+          })
+          .catch(() => localStorage.removeItem("turno"));
       } else {
-        navigate("/start-shift");
+        localStorage.removeItem("turno");
       }
+
+      // Redirigir inmediatamente según tenga o no turno activo
+      console.log("Navegando a:", hasTurno ? "/dashboard" : "/start-shift");
+      console.log("Token guardado en localStorage:", localStorage.getItem("token"));
+      
+      const targetRoute = hasTurno ? "/dashboard" : "/start-shift";
+      console.log("Ejecutando navigate a:", targetRoute);
+      navigate(targetRoute, { replace: true });
+      console.log("Navigate ejecutado");
     } catch (err) {
       setError("Error de red o servidor: " + (err?.message || ""));
     } finally {
