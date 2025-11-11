@@ -212,9 +212,8 @@ def listar_tickets(db: Session = Depends(get_db), current_user: User = Depends(g
 @ticket_router.get("/abiertos", response_model=List[TicketDetailResponse])
 def listar_tickets_abiertos(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
 	"""
-	Lista los tickets ABIERTOS del usuario con detalles.
-	- Admin: ve todos los tickets abiertos del sistema
-	- Otros usuarios: solo ven tickets abiertos de su turno ACTIVO
+	Lista los tickets ABIERTOS con detalles.
+
 	"""
 	return obtener_tickets_abiertos_con_detalles(db, current_user)
 
