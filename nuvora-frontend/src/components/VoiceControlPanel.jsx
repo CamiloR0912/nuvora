@@ -1,70 +1,121 @@
 import { useState, useRef } from "react";
 import { Mic } from "lucide-react";
 
-export function VoiceControlPanel({ lastCommand }) {
+export function VoiceControlPanel({ onCommandResponse }) {
   const [recording, setRecording] = useState(false);
   const [transcript, setTranscript] = useState("");
+  const [response, setResponse] = useState("");
+  const [processing, setProcessing] = useState(false);
   const [error, setError] = useState("");
-  const audioStreamRef = useRef(null);
-  const recognitionRef = useRef(null);
+  const mediaRecorderRef = useRef(null);
+  const audioChunksRef = useRef([]);
 
-  // 🔊 Maneja acceso al micrófono y reconocimiento de voz
+  // 🎤 Maneja grabación de audio y envío al backend
   async function toggleMicrophone() {
     try {
       if (!recording) {
-        // Verificar soporte del navegador para reconocimiento de voz
-        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-        if (!SpeechRecognition) {
-          throw new Error("Tu navegador no soporta reconocimiento de voz");
-        }
+        // Limpiar estados previos
+        setError("");
+        setTranscript("");
+        setResponse("");
+        audioChunksRef.current = [];
 
         // Solicitar acceso al micrófono
         const stream = await navigator.mediaDevices.getUserMedia({ 
           audio: true,
           video: false 
         });
-        audioStreamRef.current = stream;
 
-        // Configurar reconocimiento de voz
-        recognitionRef.current = new SpeechRecognition();
-        recognitionRef.current.lang = "es-ES";
-        recognitionRef.current.continuous = true;
-        recognitionRef.current.interimResults = true;
+        // Configurar MediaRecorder
+        const mediaRecorder = new MediaRecorder(stream, {
+          mimeType: 'audio/webm;codecs=opus'
+        });
+        mediaRecorderRef.current = mediaRecorder;
 
-        // Configurar eventos de reconocimiento
-        recognitionRef.current.onresult = (event) => {
-          const current = event.resultIndex;
-          const result = event.results[current];
-          const transcriptText = result[0].transcript;
-          console.log("� Texto reconocido:", transcriptText);
-          setTranscript(transcriptText);
+        // Capturar chunks de audio
+        mediaRecorder.ondataavailable = (event) => {
+          if (event.data.size > 0) {
+            audioChunksRef.current.push(event.data);
+          }
         };
 
-        recognitionRef.current.onerror = (event) => {
-          console.error("❌ Error en reconocimiento:", event.error);
-          setError("Error en reconocimiento de voz: " + event.error);
+        // Cuando se detiene la grabación, enviar al backend
+        mediaRecorder.onstop = async () => {
+          const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+          await sendAudioToBackend(audioBlob);
+          
+          // Detener el stream del micrófono
+          stream.getTracks().forEach(track => track.stop());
         };
 
-        // Iniciar reconocimiento
-        recognitionRef.current.start();
+        // Iniciar grabación
+        mediaRecorder.start();
         setRecording(true);
-        console.log("🎤 Reconocimiento de voz activado");
+        console.log("🎤 Grabación iniciada");
       } else {
-        // Detener reconocimiento y grabación
-        if (recognitionRef.current) {
-          recognitionRef.current.stop();
+        // Detener grabación
+        if (mediaRecorderRef.current && mediaRecorderRef.current.state === "recording") {
+          mediaRecorderRef.current.stop();
+          setRecording(false);
+          setProcessing(true);
+          console.log("🛑 Grabación detenida, procesando...");
         }
-        if (audioStreamRef.current) {
-          audioStreamRef.current.getTracks().forEach((track) => track.stop());
-          audioStreamRef.current = null;
-        }
-        setRecording(false);
-        console.log("🛑 Reconocimiento de voz desactivado");
       }
     } catch (error) {
       console.error("❌ Error:", error);
       setError(error.message || "Error al acceder al micrófono. Verifica los permisos del navegador.");
-      alert(error.message || "Error al acceder al micrófono. Verifica los permisos del navegador.");
+      setRecording(false);
+    }
+  }
+
+  // 📤 Envía el audio al backend y procesa la respuesta
+  async function sendAudioToBackend(audioBlob) {
+    try {
+      setProcessing(true);
+      
+      // Obtener JWT del localStorage
+      const token = localStorage.getItem("token");
+      if (!token) {
+        throw new Error("No hay sesión activa. Por favor inicia sesión.");
+      }
+
+      // Preparar FormData con el audio
+      const formData = new FormData();
+      formData.append('file', audioBlob, 'recording.webm');
+
+      console.log("📤 Enviando audio al backend...");
+
+      // Enviar a tu voice_service
+      const res = await fetch('http://localhost:8003/voice-command', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        },
+        body: formData
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.detail || 'Error al procesar el audio');
+      }
+
+      const data = await res.json();
+      console.log("✅ Respuesta del backend:", data);
+
+      // Actualizar estados con la respuesta
+      setTranscript(data.query || "");
+      setResponse(data.response || "");
+      
+      // Notificar al componente padre si existe
+      if (onCommandResponse) {
+        onCommandResponse(data);
+      }
+
+    } catch (error) {
+      console.error("❌ Error enviando audio:", error);
+      setError(error.message || "Error al procesar el comando de voz");
+    } finally {
+      setProcessing(false);
     }
   }
 
@@ -78,15 +129,20 @@ export function VoiceControlPanel({ lastCommand }) {
           className={`rounded-full p-6 transition ${
             recording
               ? "bg-red-200 hover:bg-red-300 animate-pulse"
+              : processing
+              ? "bg-yellow-100"
               : "bg-blue-100 hover:bg-blue-200"
           }`}
           onClick={toggleMicrophone}
+          disabled={processing}
           aria-label={recording ? "Detener grabación" : "Iniciar grabación"}
         >
-          <Mic className={`w-8 h-8 ${recording ? "text-red-600" : "text-blue-600"}`} />
+          <Mic className={`w-8 h-8 ${
+            recording ? "text-red-600" : processing ? "text-yellow-600" : "text-blue-600"
+          }`} />
         </button>
         <span className="text-sm text-gray-500 mt-2">
-          {recording ? "Grabando audio..." : "Toca para hablar"}
+          {recording ? "Grabando audio..." : processing ? "Procesando..." : "Toca para hablar"}
         </span>
       </div>
 
@@ -98,23 +154,36 @@ export function VoiceControlPanel({ lastCommand }) {
         </div>
       )}
 
-      {/* Texto temporal y comandos */}
-      <div className="mb-3">
-        <span className="block text-xs text-gray-400">Último comando:</span>
-        <span className="block font-medium text-gray-700 text-sm min-h-[20px] break-words">
-          {transcript || lastCommand || "—"}
-        </span>
-      </div>
+      {/* Transcripción */}
+      {transcript && (
+        <div className="mb-3 p-3 bg-blue-50 rounded-lg">
+          <span className="block text-xs text-blue-600 font-semibold mb-1">Tu comando:</span>
+          <span className="block text-gray-700 text-sm break-words">
+            "{transcript}"
+          </span>
+        </div>
+      )}
+
+      {/* Respuesta del sistema */}
+      {response && (
+        <div className="mb-3 p-3 bg-green-50 rounded-lg">
+          <span className="block text-xs text-green-600 font-semibold mb-1">Respuesta:</span>
+          <span className="block text-gray-700 text-sm break-words">
+            {response}
+          </span>
+        </div>
+      )}
 
       <div>
         <span className="block font-semibold text-sm mb-1 text-slate-600">
           Comandos disponibles:
         </span>
         <ul className="list-disc pl-5 text-xs text-gray-500 space-y-1">
-          <li>¿Cuántos carros hay?</li>
-          <li>Mostrar cupos disponibles</li>
           <li>Buscar placa ABC-123</li>
-          <li>Estadísticas del día</li>
+          <li>¿Cuántos tickets tengo?</li>
+          <li>Mostrar mis estadísticas</li>
+          <li>¿Cuál fue la última detección?</li>
+          <li>Listar usuarios del sistema</li>
         </ul>
       </div>
     </div>

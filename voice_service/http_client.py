@@ -108,7 +108,7 @@ class BackendClient:
         if estado:
             params["estado"] = estado
         
-        result = self._make_request("GET", "/tickets/", params=params, user_jwt=user_jwt)
+        result = self._make_request("GET", "/api/tickets/", params=params, user_jwt=user_jwt)
         return result if result else []
     
     def get_my_tickets(self, user_jwt: str) -> Optional[list]:
@@ -116,7 +116,13 @@ class BackendClient:
         Obtiene los tickets del usuario autenticado CON DETALLES (placa, cliente, etc).
         Requiere JWT del usuario.
         """
-        result = self._make_request("GET", "/tickets/detallados", user_jwt=user_jwt)
+        logger.info("🎫 Obteniendo tickets detallados del usuario...")
+        result = self._make_request("GET", "/api/tickets/detallados", user_jwt=user_jwt)
+        
+        logger.info(f"📊 Respuesta del backend: {result}")
+        logger.info(f"📊 Tipo de respuesta: {type(result)}")
+        logger.info(f"📊 Cantidad de tickets: {len(result) if result else 0}")
+        
         return result if result else []
     
     def get_my_open_tickets(self, user_jwt: str) -> Optional[list]:
@@ -125,8 +131,15 @@ class BackendClient:
         Requiere JWT del usuario.
         """
         tickets = self.get_my_tickets(user_jwt=user_jwt)
+        
+        logger.info(f"📊 Total de tickets obtenidos: {len(tickets) if tickets else 0}")
         if tickets:
-            return [t for t in tickets if t.get("estado") == "abierto"]
+            logger.info(f"📊 Estados: {[t.get('estado') for t in tickets]}")
+        
+        if tickets:
+            abiertos = [t for t in tickets if t.get("estado") == "abierto"]
+            logger.info(f"📊 Tickets abiertos filtrados: {len(abiertos)}")
+            return abiertos
         return []
     
     def search_ticket_by_plate(self, placa: str, user_jwt: str) -> Optional[Dict[Any, Any]]:
@@ -141,7 +154,7 @@ class BackendClient:
         Returns:
             Ticket con detalles o None si no se encuentra
         """
-        result = self._make_request("GET", f"/tickets/buscar-placa/{placa}", user_jwt=user_jwt)
+        result = self._make_request("GET", f"/api/tickets/buscar-placa/{placa}", user_jwt=user_jwt)
         return result
     
     def get_ticket_by_id(self, ticket_id: int) -> Optional[Dict[Any, Any]]:
@@ -153,12 +166,12 @@ class BackendClient:
     
     def get_clientes(self, limit: int = 100) -> Optional[list]:
         """Obtiene lista de clientes"""
-        result = self._make_request("GET", "/clientes", params={"limit": limit})
+        result = self._make_request("GET", "/api/clientes", params={"limit": limit})
         return result if result else []
     
     def search_cliente_by_name(self, nombre: str) -> Optional[list]:
         """Busca clientes por nombre"""
-        result = self._make_request("GET", "/clientes/search", params={"nombre": nombre})
+        result = self._make_request("GET", "/api/clientes/search", params={"nombre": nombre})
         return result if result else []
     
     # ========== MÉTODOS PARA USUARIOS ==========
@@ -173,7 +186,7 @@ class BackendClient:
         Returns:
             Lista de usuarios o None si falla
         """
-        result = self._make_request("GET", "/users/", user_jwt=user_jwt)
+        result = self._make_request("GET", "/api/users/", user_jwt=user_jwt)
         return result
 
 

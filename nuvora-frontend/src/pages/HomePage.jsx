@@ -31,6 +31,23 @@ export default function HomePage() {
   // Obtener token del localStorage
   const token = localStorage.getItem('token');
 
+  // Callback para manejar respuestas de comandos de voz
+  const handleVoiceCommand = useCallback((voiceData) => {
+    console.log('🎤 Comando de voz recibido:', voiceData);
+    
+    // Agregar el comando a la actividad reciente
+    const voiceEvent = {
+      id: `voice-${Date.now()}`,
+      event_type: 'voice_command',
+      event_data: {
+        description: `Comando: "${voiceData.query}" - ${voiceData.response}`
+      },
+      created_at: new Date().toISOString()
+    };
+    
+    setEvents(prev => [voiceEvent, ...prev].slice(0, 3));
+  }, []);
+
   // Callback para manejar mensajes SSE
   const handleSSEMessage = useCallback((data) => {
     if (data.event_type === 'vehicle_detected') {
@@ -161,7 +178,7 @@ export default function HomePage() {
         </div>
         <div className="flex flex-col space-y-6">
           <RecentActivity events={events} />
-          <VoiceControlPanel lastCommand={events.find(e => e.event_type === 'voice_command')?.event_data?.description ?? ''} />
+          <VoiceControlPanel onCommandResponse={handleVoiceCommand} />
         </div>
       </div>
       <VehicleList vehicles={vehicles} />

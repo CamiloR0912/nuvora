@@ -152,14 +152,22 @@ def listar_todos_tickets(db: Session = Depends(get_db), admin: User = Depends(re
 def listar_tickets_detallados(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
 	"""
 	Lista los tickets del usuario con detalles (placa del vehículo y datos del cliente si existen).
+	SOLO retorna tickets de TURNOS ACTIVOS (estado='abierto').
 	Más útil para el voice service y consultas rápidas.
 	"""
-	# Obtener los IDs de los turnos del usuario
+	# Obtener los IDs de los turnos ACTIVOS del usuario
 	if current_user.rol == 'admin':
-		tickets = db.query(Ticket).all()
+		# Admin ve tickets de todos los turnos activos
+		turnos_activos = db.query(Turno.id).filter(Turno.estado == 'abierto').all()
+		turno_ids = [t[0] for t in turnos_activos]
+		tickets = db.query(Ticket).filter(Ticket.turno_id.in_(turno_ids)).all()
 	else:
-		turnos_usuario = db.query(Turno.id).filter(Turno.usuario_id == current_user.id).all()
-		turno_ids = [t[0] for t in turnos_usuario]
+		# Usuario normal solo ve tickets de SUS turnos activos
+		turnos_activos = db.query(Turno.id).filter(
+			Turno.usuario_id == current_user.id,
+			Turno.estado == 'abierto'
+		).all()
+		turno_ids = [t[0] for t in turnos_activos]
 		tickets = db.query(Ticket).filter(Ticket.turno_id.in_(turno_ids)).all()
 	
 	# Enriquecer con datos del vehículo y cliente
