@@ -20,6 +20,7 @@ class TicketResponse(BaseModel):
     id: int
     vehiculo_id: int
     turno_id: Optional[int]
+    turno_cierre_id: Optional[int] = None
     hora_entrada: datetime
     hora_salida: Optional[datetime]
     monto_total: Optional[float]
@@ -34,6 +35,7 @@ class TicketDetailResponse(BaseModel):
     id: int
     vehiculo_id: int
     turno_id: Optional[int]
+    turno_cierre_id: Optional[int] = None
     hora_entrada: datetime
     hora_salida: Optional[datetime]
     monto_total: Optional[float]

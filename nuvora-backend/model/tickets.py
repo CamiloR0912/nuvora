@@ -11,7 +11,8 @@ class Ticket(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     vehiculo_id = Column(Integer, ForeignKey('vehiculos.id'), nullable=False)
-    turno_id = Column(Integer, ForeignKey('turnos.id'), nullable=True)
+    turno_id = Column(Integer, ForeignKey('turnos.id'), nullable=True)  # Turno que registró la entrada
+    turno_cierre_id = Column(Integer, ForeignKey('turnos.id'), nullable=True)  # Turno que registró la salida
     hora_entrada = Column(DateTime(timezone=False), nullable=False)
     hora_salida = Column(DateTime(timezone=False), nullable=True)
     monto_total = Column(DECIMAL(10,2), nullable=True)
