@@ -7,8 +7,6 @@ import { useState, useEffect } from 'react';
 const navItems = [
   { label: "Dashboard", path: "/dashboard", icon: LayoutDashboard },
   { label: "Vehículos", path: "/dashboard/vehiculos", icon: Car },
-  { label: "Actividad", path: "/dashboard/actividad", icon: Activity },
-  { label: "Base de Datos", path: "/dashboard/bd", icon: Database },
 ];
 
 export default function Sidebar() {

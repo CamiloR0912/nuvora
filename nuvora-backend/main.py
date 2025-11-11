@@ -5,6 +5,7 @@ from router.turno_router import turno_router
 from router.ticket_router import ticket_router
 from router.client_router import client_router
 from router.events_router import events_router
+from router.vehiculo_router import vehiculo_router
 from config.db import Base, engine
 from threading import Thread
 from consumer import VehicleEventConsumer
@@ -38,6 +39,7 @@ app.include_router(turno_router, prefix="/api")
 app.include_router(ticket_router, prefix="/api")
 app.include_router(client_router, prefix="/api")
 app.include_router(events_router, prefix="/api")
+app.include_router(vehiculo_router, prefix="/api")
 
 
 def start_rabbitmq_consumer():

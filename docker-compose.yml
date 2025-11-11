@@ -2,14 +2,8 @@ services:
   backend:
     build: ./nuvora-backend
     container_name: smartpark-backend
-    ports:
-      - "8000:8000"
-    depends_on:
-      db:
-        condition: service_healthy
-      rabbitmq:
-        condition: service_healthy
     environment:
+      TZ: America/Bogota
       DATABASE_URL: "mysql+pymysql://root:12345679@db:3306/test4"
       RABBITMQ_HOST: rabbitmq
       RABBITMQ_PORT: 5672
@@ -17,6 +11,13 @@ services:
       RABBITMQ_PASS: admin
       SECRET_KEY: "your-super-secret-jwt-key-change-in-prod"
       SERVICE_API_KEY: "nuvora-service-key-2024-change-in-prod"
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
     networks:
       - smartnet
     labels:
@@ -26,69 +27,11 @@ services:
       - "traefik.http.routers.backend-nuvora.tls=true"
       - "traefik.http.services.backend.loadbalancer.server.port=8000"
 
-  # vision_service:
-  #   build: ./vision_service
-  #   container_name: smartpark-vision
-  #   environment:
-  #     - STREAM_URL=http://streamservice:8000/cameras/entrada/stream
-  #     - RABBITMQ_HOST=rabbitmq
-  #     - RABBITMQ_PORT=5672
-  #     - RABBITMQ_USER=admin
-  #     - RABBITMQ_PASS=admin
-  #   depends_on:
-  #     rabbitmq:
-  #       condition: service_healthy
-  #   networks:
-  #     - smartnet
-  #   restart: on-failure
-
-  # voice_service:
-  #   build: ./voice_service
-  #   container_name: smartpark-voice
-  #   ports:
-  #     - "8003:8003"
-  #   environment:
-  #     BACKEND_URL: "http://smartpark-backend:8000"
-  #     SERVICE_API_KEY: "nuvora-service-key-2024-change-in-prod"
-  #   depends_on:
-  #     - backend
-  #   networks:
-  #     - smartnet
-  #   restart: on-failure
-
-  # vision_service:
-  #   build: ./vision_service
-  #   container_name: smartpark-vision
-  #   environment:
-  #     - STREAM_URL=http://streamservice:8000/cameras/entrada/stream
-  #     - RABBITMQ_HOST=rabbitmq
-  #     - RABBITMQ_PORT=5672
-  #     - RABBITMQ_USER=admin
-  #     - RABBITMQ_PASS=admin
-  #   depends_on:
-  #     rabbitmq:
-  #       condition: service_healthy
-  #   networks:
-  #     - smartnet
-  #   restart: on-failure
-
-  # voice_service:
-  #   build: ./voice_service
-  #   container_name: smartpark-voice
-  #   ports:
-  #     - "8003:8003"
-  #   environment:
-  #     BACKEND_URL: "http://smartpark-backend:8000"
-  #     SERVICE_API_KEY: "nuvora-service-key-2024-change-in-prod"
-  #   depends_on:
-  #     - backend
-  #   networks:
-  #     - smartnet
-  #   restart: on-failure
-
   frontend:
     build: ./nuvora-frontend
     container_name: smartpark-frontend
+    environment:
+      TZ: America/Bogota
     ports:
       - "5173:5173"
     networks:
@@ -108,6 +51,7 @@ services:
     image: mysql:8
     container_name: smartpark-db
     environment:
+      TZ: America/Bogota
       MYSQL_ROOT_PASSWORD: 12345679
       MYSQL_DATABASE: test4
     ports:
@@ -124,16 +68,16 @@ services:
       retries: 5
       start_period: 30s
 
-
   rabbitmq:
     image: rabbitmq:3-management
     container_name: smartpark-rabbit
+    environment:
+      TZ: America/Bogota
+      RABBITMQ_DEFAULT_USER: admin
+      RABBITMQ_DEFAULT_PASS: admin
     ports:
       - "5672:5672"
       - "15672:15672"
-    environment:
-      RABBITMQ_DEFAULT_USER: admin
-      RABBITMQ_DEFAULT_PASS: admin
     volumes:
       - rabbitmq_data:/var/lib/rabbitmq
     networks:
