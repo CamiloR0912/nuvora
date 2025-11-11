@@ -115,19 +115,19 @@ class BackendClient:
         """
         Obtiene los tickets del usuario autenticado CON DETALLES (placa, cliente, etc).
         Requiere JWT del usuario.
+        Retorna tickets del turno activo.
         """
-        result = self._make_request("GET", "/tickets/detallados", user_jwt=user_jwt)
+        result = self._make_request("GET", "/api/tickets/", user_jwt=user_jwt)
         return result if result else []
     
     def get_my_open_tickets(self, user_jwt: str) -> Optional[list]:
         """
         Obtiene solo los tickets abiertos del usuario autenticado con detalles.
+        Usa el endpoint /abiertos que ya filtra por estado y turno activo.
         Requiere JWT del usuario.
         """
-        tickets = self.get_my_tickets(user_jwt=user_jwt)
-        if tickets:
-            return [t for t in tickets if t.get("estado") == "abierto"]
-        return []
+        result = self._make_request("GET", "/api/tickets/abiertos", user_jwt=user_jwt)
+        return result if result else []
     
     def search_ticket_by_plate(self, placa: str, user_jwt: str) -> Optional[Dict[Any, Any]]:
         """
@@ -141,7 +141,7 @@ class BackendClient:
         Returns:
             Ticket con detalles o None si no se encuentra
         """
-        result = self._make_request("GET", f"/tickets/buscar-placa/{placa}", user_jwt=user_jwt)
+        result = self._make_request("GET", f"/api/tickets/buscar-placa/{placa}", user_jwt=user_jwt)
         return result
     
     def get_ticket_by_id(self, ticket_id: int) -> Optional[Dict[Any, Any]]:
