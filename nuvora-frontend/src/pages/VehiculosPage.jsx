@@ -50,7 +50,6 @@ export default function VehiculosPage() {
   // Estados para modal de salida
   const [showSalidaModal, setShowSalidaModal] = useState(false);
   const [placaSalida, setPlacaSalida] = useState("");
-  const [fechaSalida, setFechaSalida] = useState("");
   const [loadingSalida, setLoadingSalida] = useState(false);
   const [errorSalida, setErrorSalida] = useState("");
 
@@ -75,8 +74,16 @@ export default function VehiculosPage() {
     getVehiculosActivos()
       .then((res) => {
         if (Array.isArray(res.data)) {
-          setVehiculos(res.data);
-          setVehiculosFiltrados(res.data);
+          // Mapear la respuesta de tickets a formato esperado por el componente
+          const vehiculosFormateados = res.data.map(ticket => ({
+            id: ticket.id,
+            placa: ticket.placa,
+            fecha_entrada: ticket.hora_entrada, // Mapear hora_entrada a fecha_entrada
+            espacio: null, // No hay campo de espacio en tickets
+            usuario_nombre: ticket.usuario_entrada_nombre // Nombre del usuario que registró la entrada
+          }));
+          setVehiculos(vehiculosFormateados);
+          setVehiculosFiltrados(vehiculosFormateados);
         } else {
           setVehiculos([]);
           setVehiculosFiltrados([]);
@@ -127,16 +134,9 @@ export default function VehiculosPage() {
     setErrorSalida("La placa es obligatoria");
     return;
   }
-  if (!fechaSalida) {
-    setErrorSalida("La fecha y hora de salida son obligatorias");
-    return;
-  }
 
-  // Construir payload
-  const payload = {
-    placa,
-    fecha_salida: new Date(fechaSalida).toISOString()
-  };
+  // El backend registra la hora automáticamente
+  const payload = { placa };
 
   console.log("📤 [VehiculosPage] Enviando payload de salida:", payload);
 
@@ -146,10 +146,8 @@ export default function VehiculosPage() {
     console.log("✅ [VehiculosPage] Respuesta registrarSalida:", res.data);
     setShowSalidaModal(false);
     setPlacaSalida("");
-    setFechaSalida("");
     cargarVehiculos(); // Recargar lista
   } catch (err) {
-    // Mostrar info de error extendida para depuración
     console.error("❌ [VehiculosPage] Error registrarSalida:", err);
     console.error("   response:", err.response);
     const msg =
@@ -161,6 +159,26 @@ export default function VehiculosPage() {
     setLoadingSalida(false);
   }
 };
+
+  // Registrar salida directa desde el botón del vehículo
+  const handleSalidaDirecta = async (placa) => {
+    if (!confirm(`¿Confirmar salida del vehículo ${placa}?`)) {
+      return;
+    }
+
+    const payload = { placa };
+    console.log("📤 [VehiculosPage] Salida directa:", payload);
+
+    try {
+      const res = await registrarSalida(payload);
+      console.log("✅ [VehiculosPage] Salida registrada:", res.data);
+      cargarVehiculos(); // Recargar lista
+    } catch (err) {
+      console.error("❌ [VehiculosPage] Error en salida directa:", err);
+      const msg = err.response?.data?.detail || "Error al registrar salida";
+      alert(msg);
+    }
+  };
 
   return (
     <div className="max-w-3xl mx-auto py-8">
@@ -251,14 +269,26 @@ export default function VehiculosPage() {
                       {new Date(v.fecha_entrada).toLocaleString()}
                     </span>
                   </div>
-                  <div className="text-xs text-gray-500">
-                    Cupo: <span className="font-medium">{v.espacio ?? "-"}</span>
-                  </div>
+                  {v.usuario_nombre && (
+                    <div className="text-xs text-gray-500">
+                      Registrado por: <span className="font-medium">{v.usuario_nombre}</span>
+                    </div>
+                  )}
                 </div>
               </div>
-              <div className="flex items-center text-gray-600 text-sm">
-                <Clock className="w-4 h-4 mr-2" />
-                <span className="font-medium">{formatDuration(v.fecha_entrada)}</span>
+              <div className="flex items-center gap-4">
+                <div className="flex items-center text-gray-600 text-sm">
+                  <Clock className="w-4 h-4 mr-2" />
+                  <span className="font-medium">{formatDuration(v.fecha_entrada)}</span>
+                </div>
+                <button
+                  onClick={() => handleSalidaDirecta(v.placa)}
+                  className="flex items-center gap-2 bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition text-sm"
+                  title="Registrar salida"
+                >
+                  <LogOut className="w-4 h-4" />
+                  Salida
+                </button>
               </div>
             </li>
           ))}
@@ -324,7 +354,6 @@ export default function VehiculosPage() {
         onClose={() => {
           setShowSalidaModal(false);
           setPlacaSalida("");
-          setFechaSalida("");
           setErrorSalida("");
         }}
         title="Registrar Salida Manual"
@@ -343,19 +372,9 @@ export default function VehiculosPage() {
               maxLength={10}
               required
             />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Fecha y hora de salida *
-            </label>
-            <input
-              type="datetime-local"
-              value={fechaSalida}
-              onChange={(e) => setFechaSalida(e.target.value)}
-              className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-              required
-            />
+            <p className="text-xs text-gray-500 mt-2">
+              La hora de salida se registrará automáticamente
+            </p>
           </div>
 
           {errorSalida && (
@@ -368,7 +387,6 @@ export default function VehiculosPage() {
               onClick={() => {
                 setShowSalidaModal(false);
                 setPlacaSalida("");
-                setFechaSalida("");
                 setErrorSalida("");
               }}
               className="flex-1 bg-gray-200 text-gray-700 py-2 rounded-lg hover:bg-gray-300 transition"

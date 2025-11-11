@@ -1,22 +1,22 @@
 // src/api/vehiculosApi.js
 import { http } from "./http";
 
-// 1️⃣ Obtener todos los vehículos activos
-export const getVehiculosActivos = () => http.get("/vehiculos/activos");
+// 1️⃣ Obtener todos los vehículos activos (tickets abiertos)
+export const getVehiculosActivos = () => http.get("/tickets/abiertos");
 
-// 2️⃣ Obtener historial de vehículos
-export const getVehiculosHistorial = () => http.get("/vehiculos/historial");
+// 2️⃣ Obtener historial de tickets (todos los tickets del turno actual)
+export const getVehiculosHistorial = () => http.get("/tickets/");
 
 // 3️⃣ Registrar entrada
-export const registrarEntrada = (data) => http.post("/vehiculos/entrada", data);
+export const registrarEntrada = (data) => http.post("/tickets/entrada", data);
 
 // 4️⃣ Registrar salida (con logging interno)
 export const registrarSalida = (data) => {
   // Log para depuración (se ejecuta en tiempo de llamada)
   console.log("📤 [vehiculosApi] registrarSalida -> payload:", data);
-  return http.post("/vehiculos/salida", data);
+  return http.post("/tickets/salida", data);
 };
 
 // 5️⃣ Buscar por placa
 export const buscarPorPlaca = (placa) =>
-  http.get(`/vehiculos/buscar/${encodeURIComponent(placa)}`);
+  http.get(`/tickets/buscar-placa/${encodeURIComponent(placa)}`);
