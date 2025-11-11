@@ -93,24 +93,6 @@ class BackendClient:
     
     # ========== MÉTODOS PARA TICKETS ==========
     
-    def get_tickets(
-        self, 
-        estado: Optional[str] = None,
-        limit: int = 100,
-        user_jwt: Optional[str] = None
-    ) -> Optional[list]:
-        """
-        Obtiene tickets con filtros opcionales.
-        Si se proporciona user_jwt, obtiene los tickets del usuario autenticado.
-        Si no, usa API Key de servicio.
-        """
-        params = {"limit": limit}
-        if estado:
-            params["estado"] = estado
-        
-        result = self._make_request("GET", "/tickets/", params=params, user_jwt=user_jwt)
-        return result if result else []
-    
     def get_my_tickets(self, user_jwt: str) -> Optional[list]:
         """
         Obtiene los tickets del usuario autenticado CON DETALLES (placa, cliente, etc).
@@ -144,21 +126,16 @@ class BackendClient:
         result = self._make_request("GET", f"/api/tickets/buscar-placa/{placa}", user_jwt=user_jwt)
         return result
     
-    def get_ticket_by_id(self, ticket_id: int) -> Optional[Dict[Any, Any]]:
-        """Obtiene un ticket específico"""
-        result = self._make_request("GET", f"/tickets/{ticket_id}")
-        return result
-    
     # ========== MÉTODOS PARA CLIENTES ==========
     
     def get_clientes(self, limit: int = 100) -> Optional[list]:
         """Obtiene lista de clientes"""
-        result = self._make_request("GET", "/clientes", params={"limit": limit})
+        result = self._make_request("GET", "/api/clientes", params={"limit": limit})
         return result if result else []
     
     def search_cliente_by_name(self, nombre: str) -> Optional[list]:
         """Busca clientes por nombre"""
-        result = self._make_request("GET", "/clientes/search", params={"nombre": nombre})
+        result = self._make_request("GET", "/api/clientes/search", params={"nombre": nombre})
         return result if result else []
     
     # ========== MÉTODOS PARA USUARIOS ==========
@@ -173,7 +150,7 @@ class BackendClient:
         Returns:
             Lista de usuarios o None si falla
         """
-        result = self._make_request("GET", "/users/", user_jwt=user_jwt)
+        result = self._make_request("GET", "/api/users/", user_jwt=user_jwt)
         return result
 
 

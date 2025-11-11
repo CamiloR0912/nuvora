@@ -28,25 +28,13 @@ def obtener_tickets_abiertos_con_detalles(db: Session, current_user: User) -> Li
 	Reutilizable en múltiples endpoints.
 	
 	- Admin: todos los tickets abiertos del sistema
-	- Usuario normal: solo tickets abiertos de su turno activo
+	- Usuario normal: TODOS los tickets abiertos (sin importar el turno que los creó)
+	
+	Esto permite que cualquier usuario pueda cerrar tickets abiertos,
+	incluso si fueron creados por un turno anterior.
 	"""
-	if current_user.rol == 'admin':
-		# Admin ve todos los tickets abiertos del sistema
-		tickets = db.query(Ticket).filter(Ticket.estado == 'abierto').all()
-	else:
-		# Usuario normal: solo tickets abiertos de su turno ACTIVO
-		turno_activo = db.query(Turno).filter(
-			Turno.usuario_id == current_user.id,
-			Turno.estado == 'abierto'
-		).first()
-		
-		if not turno_activo:
-			return []  # Si no tiene turno activo, retorna lista vacía
-		
-		tickets = db.query(Ticket).filter(
-			Ticket.turno_id == turno_activo.id,
-			Ticket.estado == 'abierto'
-		).all()
+	# Obtener TODOS los tickets abiertos del sistema (sin filtrar por turno)
+	tickets = db.query(Ticket).filter(Ticket.estado == 'abierto').all()
 	
 	# Enriquecer con datos del vehículo
 	tickets_detallados = []
@@ -102,7 +90,6 @@ def entrada_ticket(data: TicketEntrada, db: Session = Depends(get_db), current_u
     # Evitar crear dos tickets abiertos para la misma placa en el mismo turno
     existente = db.query(Ticket).filter(
         Ticket.vehiculo_id == veh.id,
-        Ticket.turno_id == turno_abierto.id,
         Ticket.estado != 'cerrado'
     ).first()
     if existente:
@@ -225,9 +212,8 @@ def listar_tickets(db: Session = Depends(get_db), current_user: User = Depends(g
 @ticket_router.get("/abiertos", response_model=List[TicketDetailResponse])
 def listar_tickets_abiertos(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
 	"""
-	Lista los tickets ABIERTOS del usuario con detalles.
-	- Admin: ve todos los tickets abiertos del sistema
-	- Otros usuarios: solo ven tickets abiertos de su turno ACTIVO
+	Lista los tickets ABIERTOS con detalles.
+
 	"""
 	return obtener_tickets_abiertos_con_detalles(db, current_user)
 
