@@ -161,11 +161,10 @@ export default function HomePage() {
       )}
       
       {/* Tarjetas de estadísticas principales */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
         <StatCard title="Total de Cupos" value={stats.totalSpaces} icon={ParkingCircle} subtitle="Capacidad total" />
         <StatCard title="Cupos Ocupados" value={stats.occupiedSpaces} icon={Car} subtitle={`${Math.round((stats.occupiedSpaces / stats.totalSpaces) * 100)}% ocupación`} />
         <StatCard title="Cupos Disponibles" value={stats.availableSpaces} icon={ParkingCircle} subtitle="Listos para usar" />
-        <StatCard title="Vehículos Activos" value={stats.activeVehicles} icon={Clock} subtitle="En el parqueadero" />
       </div>
 
       {/* Aquí va el Detection, ocupa todo el ancho izquierdo del grid */}
@@ -181,7 +180,6 @@ export default function HomePage() {
           <VoiceControlPanel onCommandResponse={handleVoiceCommand} />
         </div>
       </div>
-      <VehicleList vehicles={vehicles} />
     </div>
   );
 }

@@ -1,23 +1,22 @@
-import axios from "axios";
+// src/api/vehiculosApi.js
+import { http } from "./http";
 
-const api = axios.create({
-  baseURL: "/api/vehiculos",
-});
+// 1️⃣ Obtener todos los vehículos activos (tickets abiertos)
+export const getVehiculosActivos = () => http.get("/tickets/abiertos");
 
-// 1️⃣ Obtener todos los vehículos activos
-export const getVehiculosActivos = () => api.get("/activos");
-
-// 2️⃣ Obtener historial de vehículos
-export const getVehiculosHistorial = () => api.get("/historial");
+// 2️⃣ Obtener historial de tickets (todos los tickets del turno actual)
+export const getVehiculosHistorial = () => http.get("/tickets/");
 
 // 3️⃣ Registrar entrada
-export const registrarEntrada = (data) =>
-  api.post("/entrada", data); // { placa, fecha_entrada (ISO opcional) }
+export const registrarEntrada = (data) => http.post("/tickets/entrada", data);
 
-// 4️⃣ Registrar salida
-export const registrarSalida = (data) =>
-  api.post("/salida", data); // { placa, fecha_salida (ISO obligatorio) }
+// 4️⃣ Registrar salida (con logging interno)
+export const registrarSalida = (data) => {
+  // Log para depuración (se ejecuta en tiempo de llamada)
+  console.log("📤 [vehiculosApi] registrarSalida -> payload:", data);
+  return http.post("/tickets/salida", data);
+};
 
 // 5️⃣ Buscar por placa
 export const buscarPorPlaca = (placa) =>
-  api.get(`/buscar/${encodeURIComponent(placa)}`);
+  http.get(`/tickets/buscar-placa/${encodeURIComponent(placa)}`);

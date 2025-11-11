@@ -3,7 +3,6 @@ import LoginPage from './pages/LoginPage';
 import StartShiftPage from './pages/StartShiftPage';
 import HomePage from './pages/HomePage';
 import VehiculosPage from './pages/VehiculosPage';
-import ActividadPage from './pages/ActividadPage';
 import BaseDatosPage from './pages/BaseDatosPage';
 import DashboardLayout from './layouts/DashboardLayout';
 
@@ -35,7 +34,6 @@ function App() {
         <Route path="/dashboard" element={<DashboardLayout />}>
           <Route index element={<HomePage />} />
           <Route path="vehiculos" element={<VehiculosPage />} />
-          <Route path="actividad" element={<ActividadPage />} />
           <Route path="bd" element={<BaseDatosPage />} />
         </Route>
 

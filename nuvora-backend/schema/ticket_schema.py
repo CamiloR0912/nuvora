@@ -46,6 +46,8 @@ class TicketDetailResponse(BaseModel):
     cliente_nombre: Optional[str] = None
     cliente_telefono: Optional[str] = None
     cliente_email: Optional[str] = None
+    # Información del usuario que registró la entrada
+    usuario_entrada_nombre: Optional[str] = None
 
     class Config:
         from_attributes = True
