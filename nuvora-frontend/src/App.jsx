@@ -4,6 +4,8 @@ import StartShiftPage from './pages/StartShiftPage';
 import HomePage from './pages/HomePage';
 import VehiculosPage from './pages/VehiculosPage';
 import BaseDatosPage from './pages/BaseDatosPage';
+import TurnosPage from './pages/TurnosPage';
+import CerrarTurnoPage from './pages/CerrarTurnoPage';
 import DashboardLayout from './layouts/DashboardLayout';
 
 function RequireAuth({ children }) {
@@ -35,6 +37,8 @@ function App() {
           <Route index element={<HomePage />} />
           <Route path="vehiculos" element={<VehiculosPage />} />
           <Route path="bd" element={<BaseDatosPage />} />
+          <Route path="turnos" element={<TurnosPage />} />
+          <Route path="cerrar-turno" element={<CerrarTurnoPage />} />
         </Route>
 
         {/* Redirección por defecto */}

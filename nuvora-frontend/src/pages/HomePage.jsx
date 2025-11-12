@@ -9,6 +9,7 @@ import { VoiceControlPanel } from '../components/VoiceControlPanel';
 import { VehicleManagementPanel } from '../components/VehicleManagementPanel';
 import { useSSE } from '../api/useSSE';
 import { http } from '../api/http';
+import { useLocation } from 'react-router-dom';
 
 // Simulación de cupos (sigue igual, puedes cambiar por tu backend real luego)
 const mockParkingSpaces = [
@@ -20,6 +21,7 @@ const mockParkingSpaces = [
 ];
 
 export default function HomePage() {
+  const location = useLocation();
   const [parkingSpaces, setParkingSpaces] = useState([]);
   const [vehicles, setVehicles] = useState([]);
   const [events, setEvents] = useState([]);
@@ -29,8 +31,20 @@ export default function HomePage() {
   const [lastDetection, setLastDetection] = useState(null);
   const [recentDetections, setRecentDetections] = useState([]);
 
+  // Estado para la placa que viene desde VehiculosPage
+  const [placaSalidaInicial, setPlacaSalidaInicial] = useState(null);
+
   // Obtener token del localStorage
   const token = localStorage.getItem('token');
+
+  // Detectar si vienen con una placa para registrar salida
+  useEffect(() => {
+    if (location.state?.placaSalida) {
+      setPlacaSalidaInicial(location.state.placaSalida);
+      // Limpiar el state para que no se quede persistente
+      window.history.replaceState({}, document.title);
+    }
+  }, [location]);
 
   // Callback para manejar respuestas de comandos de voz
   const handleVoiceCommand = useCallback((voiceData) => {
@@ -211,6 +225,8 @@ export default function HomePage() {
         <VehicleManagementPanel 
           onVehicleUpdate={loadVehicleData}
           onExitRegistered={addExitEvent}
+          placaSalidaInicial={placaSalidaInicial}
+          onPlacaSalidaUsada={() => setPlacaSalidaInicial(null)}
         />
       </div>
     </div>

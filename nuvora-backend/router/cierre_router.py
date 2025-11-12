@@ -2,12 +2,12 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from sqlalchemy.sql import func
 from config.db import SessionLocal
-from config.auth import get_current_user, require_admin
+from config.auth import get_current_user, require_admin, create_access_token
 from model.cierres import CierreCaja
 from model.turnos import Turno
 from model.tickets import Ticket
 from model.users import User
-from schema.cierre_schema import CierreCreate, CierreResponse
+from schema.cierre_schema import CierreCreate, CierreResponse, CierreConTokenResponse
 from typing import List, Optional
 from datetime import datetime
 
@@ -20,52 +20,82 @@ def get_db():
     finally:
         db.close()
 
-@cierre_router.post("/", response_model=CierreResponse, status_code=201)
+@cierre_router.post("/", response_model=CierreConTokenResponse, status_code=201)
 def crear_cierre(payload: CierreCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """
-    Crea un cierre de caja para un turno.
-    - Si current_user es admin y envia turno_id, usa ese turno.
-    - Si no envía turno_id, usa el turno ABIERTO del usuario autenticado.
-    - Si el turno está abierto, lo cierra automáticamente antes de crear el cierre.
+    Crea un cierre de caja:
+    1. Cierra el turno abierto actual (si existe)
+    2. Consolida TODOS los turnos cerrados que aún NO han sido incluidos en un cierre
+    3. Devuelve un nuevo token JWT SIN turno_id para permitir abrir un nuevo turno
     """
-    # Determinar turno
-    turno: Optional[Turno] = None
-    if payload.turno_id is not None:
-        turno = db.query(Turno).filter(Turno.id == payload.turno_id).first()
-        if not turno:
-            raise HTTPException(status_code=404, detail="Turno no encontrado")
-        # si no es admin y el turno no pertenece al usuario -> forbidden
-        if current_user.rol != 'admin' and turno.usuario_id != current_user.id:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No autorizado para cerrar ese turno")
-    else:
-        turno = db.query(Turno).filter(Turno.usuario_id == current_user.id, Turno.estado == 'abierto').first()
-        if not turno:
-            raise HTTPException(status_code=400, detail="No tienes un turno abierto para cerrar")
-
-    # Si el turno está abierto, cerrarlo (fecha_fin + estado)
-    if turno.estado == 'abierto':
-        turno.estado = 'cerrado'
-        turno.fecha_fin = datetime.now()
+    # 1. Buscar y cerrar el turno abierto actual (si existe)
+    turno_abierto = db.query(Turno).filter(
+        Turno.usuario_id == current_user.id,
+        Turno.estado == 'abierto'
+    ).first()
+    
+    if turno_abierto:
+        # Calcular totales del turno abierto antes de cerrarlo
+        total_recaudado = db.query(func.coalesce(func.sum(Ticket.monto_total), 0)).filter(
+            Ticket.turno_cierre_id == turno_abierto.id,
+            Ticket.estado == 'cerrado'
+        ).scalar() or 0
+        
+        total_vehiculos = db.query(func.count(Ticket.id)).filter(
+            Ticket.turno_cierre_id == turno_abierto.id,
+            Ticket.estado == 'cerrado'
+        ).scalar() or 0
+        
+        # Cerrar el turno con los datos calculados
+        turno_abierto.fecha_fin = datetime.now()
+        turno_abierto.estado = 'cerrado'
+        turno_abierto.monto_total = float(total_recaudado)
+        turno_abierto.total_vehiculos = int(total_vehiculos)
+        turno_abierto.incluido_en_cierre = False  # Aún no incluido
+        
         try:
             db.commit()
-            db.refresh(turno)
+            db.refresh(turno_abierto)
         except Exception as e:
             db.rollback()
             raise HTTPException(status_code=500, detail=f"Error al cerrar turno: {str(e)}")
 
-    # Calcular totales a partir de tickets asociados al turno
-    total_vehiculos = db.query(func.count(Ticket.id)).filter(Ticket.turno_id == turno.id, Ticket.estado == 'cerrado').scalar() or 0
-    total_recaudado = db.query(func.coalesce(func.sum(Ticket.monto_total), 0)).filter(Ticket.turno_id == turno.id, Ticket.estado == 'cerrado').scalar() or 0
+    # 2. Buscar todos los turnos cerrados que NO han sido incluidos en un cierre
+    turnos_pendientes = db.query(Turno).filter(
+        Turno.estado == 'cerrado',
+        Turno.incluido_en_cierre == False
+    ).all()
+    
+    if not turnos_pendientes:
+        raise HTTPException(
+            status_code=400, 
+            detail="No tienes turnos pendientes de incluir en un cierre."
+        )
 
-    # Crear registro de cierre
+    # 3. Calcular totales sumando los datos de cada turno cerrado pendiente
+    total_vehiculos = sum(turno.total_vehiculos for turno in turnos_pendientes)
+    total_recaudado = sum(float(turno.monto_total or 0) for turno in turnos_pendientes)
+    
+    # Usar el turno más reciente como referencia (debería ser el que acabamos de cerrar)
+    turno_actual = turnos_pendientes[-1] if turnos_pendientes else None
+    
+    if not turno_actual:
+        raise HTTPException(status_code=400, detail="No se encontró turno para el cierre")
+
+    # Crear registro de cierre consolidado
     cierre = CierreCaja(
-        turno_id=turno.id,
+        turno_id=turno_actual.id,  # Referencia al turno actual del usuario
         total_vehiculos=int(total_vehiculos),
         total_recaudado=float(total_recaudado),
         fecha_cierre=datetime.now(),
         observaciones=payload.observaciones
     )
     db.add(cierre)
+    
+    # Marcar todos los turnos como incluidos en cierre
+    for turno in turnos_pendientes:
+        turno.incluido_en_cierre = True
+    
     try:
         db.commit()
         db.refresh(cierre)
@@ -73,42 +103,35 @@ def crear_cierre(payload: CierreCreate, db: Session = Depends(get_db), current_u
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Error al crear cierre: {str(e)}")
 
-    return cierre
+    # Crear nuevo token SIN turno_id (solo con user_id)
+    nuevo_token = create_access_token({
+        "sub": str(current_user.id)
+    })
+
+    # Retornar cierre con el nuevo token
+    return CierreConTokenResponse(
+        id=cierre.id,
+        turno_id=cierre.turno_id,
+        total_vehiculos=cierre.total_vehiculos,
+        total_recaudado=cierre.total_recaudado,
+        fecha_cierre=cierre.fecha_cierre,
+        observaciones=cierre.observaciones,
+        created_at=cierre.created_at,
+        access_token=nuevo_token,
+        token_type="bearer"
+    )
 
 @cierre_router.get("/", response_model=List[CierreResponse])
-def listar_cierres(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+def listar_cierres(db: Session = Depends(get_db), current_user: User = Depends(require_admin)):
     """
-    Lista cierres. Admin ve todos, usuarios normales ven solo los cierres de sus turnos.
+    Lista todos los cierres. Solo accesible para administradores.
     """
-    if current_user.rol == 'admin':
-        cierres = db.query(CierreCaja).order_by(CierreCaja.created_at.desc()).all()
-    else:
-        # obtener cierres cuyos turnos pertenecen al usuario
-        cierres = (
-            db.query(CierreCaja)
-            .join(Turno, CierreCaja.turno_id == Turno.id)
-            .filter(Turno.usuario_id == current_user.id)
-            .order_by(CierreCaja.created_at.desc())
-            .all()
-        )
+    cierres = db.query(CierreCaja).order_by(CierreCaja.created_at.desc()).all()
     return cierres
 
 @cierre_router.get("/{cierre_id}", response_model=CierreResponse)
-def obtener_cierre(cierre_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+def obtener_cierre(cierre_id: int, db: Session = Depends(get_db), current_user: User = Depends(require_admin)):
     cierre = db.query(CierreCaja).filter(CierreCaja.id == cierre_id).first()
     if not cierre:
         raise HTTPException(status_code=404, detail="Cierre no encontrado")
-    # permiso: admin o propietario del turno
-    turno = db.query(Turno).filter(Turno.id == cierre.turno_id).first()
-    if current_user.rol != 'admin' and turno and turno.usuario_id != current_user.id:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No autorizado para ver este cierre")
     return cierre
-
-@cierre_router.delete("/{cierre_id}", status_code=204)
-def eliminar_cierre(cierre_id: int, db: Session = Depends(get_db), admin: User = Depends(require_admin)):
-    cierre = db.query(CierreCaja).filter(CierreCaja.id == cierre_id).first()
-    if not cierre:
-        raise HTTPException(status_code=404, detail="Cierre no encontrado")
-    db.delete(cierre)
-    db.commit()
-    return None

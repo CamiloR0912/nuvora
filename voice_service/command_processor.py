@@ -198,26 +198,48 @@ def get_my_open_tickets(user_jwt: str) -> str:
         return "No pude obtener tus tickets abiertos."
 
 def get_my_stats(user_jwt: str) -> str:
-    """Obtiene estadísticas del usuario autenticado"""
+    """Obtiene estadísticas del usuario autenticado basadas en tickets que cerró"""
     try:
-        tickets = backend_client.get_my_tickets(user_jwt)
+        # Obtener tickets abiertos (vehículos en parqueadero)
+        tickets_abiertos = backend_client.get_my_open_tickets(user_jwt)
         
-        if tickets is None:
+        # Obtener tickets cerrados (salidas procesadas por el usuario)
+        tickets_cerrados = backend_client.get_my_closed_tickets(user_jwt)
+        
+        if tickets_abiertos is None or tickets_cerrados is None:
             return "No pude obtener tus estadísticas."
         
-        total = len(tickets)
-        abiertos = sum(1 for t in tickets if t.get("estado") == "abierto")
-        cerrados = sum(1 for t in tickets if t.get("estado") == "cerrado")
-        total_facturado = sum(t.get("monto_total", 0) for t in tickets if t.get("monto_total"))
+        # Contar abiertos y cerrados
+        abiertos = len(tickets_abiertos)
+        cerrados = len(tickets_cerrados)
         
-        if total == 0:
+        # Calcular total recaudado (SOLO de tickets que el usuario cerró)
+        total_facturado = sum(
+            t.get("monto_total", 0) for t in tickets_cerrados 
+            if t.get("monto_total")
+        )
+        
+        # Si no hay actividad
+        if abiertos == 0 and cerrados == 0:
             return "No tienes actividad registrada en tu turno."
         
-        response = f"Resumen de tu turno: {total} ticket{'s' if total != 1 else ''} procesado{'s' if total != 1 else ''}. "
-        response += f"{abiertos} abierto{'s' if abiertos != 1 else ''}, {cerrados} cerrado{'s' if cerrados != 1 else ''}. "
+        response = f"Resumen de tu turno: "
         
+        # Mostrar vehículos activos en parqueadero
+        if abiertos > 0:
+            response += f"{abiertos} vehículo{'s' if abiertos != 1 else ''} activo{'s' if abiertos != 1 else ''} en parqueadero. "
+        else:
+            response += "No hay vehículos activos. "
+        
+        # Mostrar salidas procesadas
+        if cerrados > 0:
+            response += f"{cerrados} salida{'s' if cerrados != 1 else ''} procesada{'s' if cerrados != 1 else ''}. "
+        
+        # Mostrar total recaudado
         if total_facturado > 0:
             response += f"Total recaudado: ${total_facturado:,.0f}."
+        else:
+            response += "Sin recaudación hasta el momento."
         
         return response
     

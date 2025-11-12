@@ -1,64 +1,45 @@
 import {
-  LayoutDashboard, Car, Activity, Database, LogOut, ChevronDown
+  LayoutDashboard, Car, Activity, Database, LogOut, ChevronDown, Clock, CheckCircle, List
 } from 'lucide-react';
 import { NavLink, useNavigate } from 'react-router-dom';
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 
 const navItems = [
   { label: "Dashboard", path: "/dashboard", icon: LayoutDashboard },
   { label: "Vehículos", path: "/dashboard/vehiculos", icon: Car },
+  { 
+    label: "Turnos", 
+    icon: Clock,
+    subItems: [
+      { label: "Mis Turnos", path: "/dashboard/turnos", icon: List },
+      { label: "Cerrar Mi Turno", path: "/dashboard/cerrar-turno", icon: CheckCircle },
+    ]
+  },
 ];
 
 export default function Sidebar() {
   const navigate = useNavigate();
   const [openMenu, setOpenMenu] = useState(false);
+  const [openSubMenu, setOpenSubMenu] = useState({});
+
+  const toggleSubMenu = (label) => {
+    setOpenSubMenu(prev => ({
+      ...prev,
+      [label]: !prev[label]
+    }));
+  };
 
   const handleLogout = async () => {
-    const token = localStorage.getItem("token");
-
-    if (!token) {
-      localStorage.removeItem("token");
-      navigate("/login");
+    if (!window.confirm("¿Estás seguro de cerrar sesión?")) {
       return;
     }
 
-    try {
-      // 🔹 Cerrar turno en el backend
-      const res = await fetch("/api/turnos/cerrar", {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${token}`,
-        },
-      });
-
-      if (res.ok) {
-        console.log("✅ Turno cerrado correctamente.");
-      } else {
-        const errorText = await res.text();
-        console.warn("⚠️ No se pudo cerrar el turno:", errorText);
-      }
-    } catch (error) {
-      console.error("❌ Error al cerrar el turno:", error);
-    } finally {
-      // 🔹 Limpiar token y redirigir
-      localStorage.removeItem("token");
-      localStorage.removeItem("usuario");
-      localStorage.removeItem("turno");
-      navigate("/login");
-    }
+    // Solo eliminar el token
+    localStorage.removeItem("token");
+    
+    // Redirigir al login
+    navigate("/login");
   };
-
-  useEffect(() => {
-    const handleBeforeUnload = () => {
-      const token = localStorage.getItem("token");
-      if (token) {
-        navigator.sendBeacon("https://nuvora/api/turnos/cerrar");
-        localStorage.removeItem("token");
-      }
-    };
-    window.addEventListener("beforeunload", handleBeforeUnload);
-    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
-  }, []);
 
   return (
     <aside className="h-screen w-64 bg-white border-r flex flex-col relative">
@@ -92,19 +73,56 @@ export default function Sidebar() {
 
       <nav className="flex-1 px-3 py-6">
         <ul className="space-y-2">
-          {navItems.map(({ label, path, icon: Icon }) => (
+          {navItems.map(({ label, path, icon: Icon, subItems }) => (
             <li key={label}>
-              <NavLink
-                to={path}
-                className={({ isActive }) =>
-                  `flex items-center px-4 py-2 rounded-lg transition 
-                   ${isActive ? 'bg-slate-100 text-blue-700 font-semibold' : 'text-gray-700 hover:bg-slate-50'}`
-                }
-                end
-              >
-                <Icon className="w-5 h-5 mr-3" />
-                <span className="truncate">{label}</span>
-              </NavLink>
+              {subItems ? (
+                // Menú con subítems
+                <div>
+                  <button
+                    onClick={() => toggleSubMenu(label)}
+                    className="w-full flex items-center justify-between px-4 py-2 rounded-lg transition text-gray-700 hover:bg-slate-50"
+                  >
+                    <div className="flex items-center">
+                      <Icon className="w-5 h-5 mr-3" />
+                      <span className="truncate">{label}</span>
+                    </div>
+                    <ChevronDown 
+                      className={`w-4 h-4 transition-transform ${openSubMenu[label] ? 'rotate-180' : ''}`} 
+                    />
+                  </button>
+                  {openSubMenu[label] && (
+                    <ul className="ml-8 mt-2 space-y-1">
+                      {subItems.map(({ label: subLabel, path: subPath, icon: SubIcon }) => (
+                        <li key={subLabel}>
+                          <NavLink
+                            to={subPath}
+                            className={({ isActive }) =>
+                              `flex items-center px-4 py-2 rounded-lg transition text-sm
+                               ${isActive ? 'bg-blue-100 text-blue-700 font-semibold' : 'text-gray-600 hover:bg-slate-50'}`
+                            }
+                          >
+                            <SubIcon className="w-4 h-4 mr-2" />
+                            <span className="truncate">{subLabel}</span>
+                          </NavLink>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              ) : (
+                // Menú simple
+                <NavLink
+                  to={path}
+                  className={({ isActive }) =>
+                    `flex items-center px-4 py-2 rounded-lg transition 
+                     ${isActive ? 'bg-slate-100 text-blue-700 font-semibold' : 'text-gray-700 hover:bg-slate-50'}`
+                  }
+                  end
+                >
+                  <Icon className="w-5 h-5 mr-3" />
+                  <span className="truncate">{label}</span>
+                </NavLink>
+              )}
             </li>
           ))}
         </ul>

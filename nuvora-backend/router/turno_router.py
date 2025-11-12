@@ -1,10 +1,12 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
+from sqlalchemy.sql import func
 from config.db import SessionLocal
 from config.auth import get_current_user, require_admin, require_cajero, create_access_token
 from model.users import User
-from schema.turno_schema import TurnoCreate, TurnoResponse, TurnoIniciadoResponse, IniciarTurnoRequest
+from schema.turno_schema import TurnoCreate, TurnoResponse, TurnoIniciadoResponse, IniciarTurnoRequest, TurnoCerradoResponse
 from model.turnos import Turno
+from model.tickets import Ticket
 from typing import List
 from datetime import datetime
 
@@ -98,14 +100,6 @@ def crear_turno(
 	return nueva
 
 
-@turno_router.get("/", response_model=List[TurnoResponse])
-def listar_mis_turnos(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-	"""
-	Lista los turnos del usuario autenticado (solo sus propios turnos).
-	"""
-	return db.query(Turno).filter(Turno.usuario_id == current_user.id).all()
-
-
 @turno_router.get("/todos", response_model=List[TurnoResponse])
 def listar_todos_turnos(db: Session = Depends(get_db), admin: User = Depends(require_admin)):
 	"""
@@ -115,10 +109,10 @@ def listar_todos_turnos(db: Session = Depends(get_db), admin: User = Depends(req
 
 
 @turno_router.get("/actual", response_model=TurnoResponse)
-@turno_router.get("/activo", response_model=TurnoResponse)
 def obtener_turno_actual(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
 	"""
 	Obtiene el turno actualmente abierto del usuario autenticado.
+	Calcula las ganancias en tiempo real basándose en los tickets cerrados hasta el momento.
 	Útil para saber si tiene un turno activo y cuál es.
 	"""
 	turno_actual = db.query(Turno).filter(
@@ -128,6 +122,21 @@ def obtener_turno_actual(db: Session = Depends(get_db), current_user: User = Dep
 	
 	if not turno_actual:
 		raise HTTPException(status_code=404, detail="No tienes un turno abierto actualmente")
+	
+	# Calcular ganancias actuales (tickets cerrados en este turno)
+	total_recaudado_actual = db.query(func.coalesce(func.sum(Ticket.monto_total), 0)).filter(
+		Ticket.turno_cierre_id == turno_actual.id,
+		Ticket.estado == 'cerrado'
+	).scalar() or 0
+	
+	total_vehiculos_actual = db.query(func.count(Ticket.id)).filter(
+		Ticket.turno_cierre_id == turno_actual.id,
+		Ticket.estado == 'cerrado'
+	).scalar() or 0
+	
+	# Actualizar los valores temporalmente para la respuesta (sin guardar en BD)
+	turno_actual.monto_total = float(total_recaudado_actual)
+	turno_actual.total_vehiculos = int(total_vehiculos_actual)
 	
 	return turno_actual
 
@@ -164,20 +173,65 @@ def cerrar_turno(
 
 
 # Endpoint para cerrar el turno abierto del usuario autenticado
-@turno_router.post("/cerrar", response_model=TurnoResponse)
+@turno_router.post("/cerrar", response_model=TurnoCerradoResponse)
 def cerrar_mi_turno(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """
     Cierra el turno abierto del usuario autenticado (no requiere id manual).
+    Calcula automáticamente el monto_total basado en los tickets cerrados.
+    Devuelve un nuevo token JWT SIN turno_id para permitir abrir un nuevo turno.
     """
     turno = db.query(Turno).filter(
         Turno.usuario_id == current_user.id,
         Turno.estado == 'abierto'
     ).first()
+    
     if not turno:
         raise HTTPException(status_code=404, detail="No tienes un turno abierto para cerrar")
+    
+    # Calcular totales basados en tickets que este turno cerró
+    total_recaudado = db.query(func.coalesce(func.sum(Ticket.monto_total), 0)).filter(
+        Ticket.turno_cierre_id == turno.id,
+        Ticket.estado == 'cerrado'
+    ).scalar() or 0
+    
+    total_vehiculos = db.query(func.count(Ticket.id)).filter(
+        Ticket.turno_cierre_id == turno.id,
+        Ticket.estado == 'cerrado'
+    ).scalar() or 0
+    
+    # Cerrar el turno con los datos calculados
     turno.fecha_fin = datetime.now()
     turno.estado = 'cerrado'
-    db.commit()
-    db.refresh(turno)
-    return turno
+    turno.monto_total = float(total_recaudado)
+    turno.total_vehiculos = int(total_vehiculos)
+    turno.incluido_en_cierre = False  # Aún no ha sido incluido en un cierre
+    
+    try:
+        db.commit()
+        db.refresh(turno)
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Error al cerrar turno: {str(e)}")
+    
+    # Crear nuevo token SIN turno_id (solo con user_id)
+    nuevo_token = create_access_token({
+        "sub": str(current_user.id)
+    })
+    
+    # Retornar turno cerrado con el nuevo token
+    return TurnoCerradoResponse(
+        id=turno.id,
+        usuario_id=turno.usuario_id,
+        fecha_inicio=turno.fecha_inicio,
+        fecha_fin=turno.fecha_fin,
+        monto_inicial=turno.monto_inicial,
+        monto_total=turno.monto_total,
+        total_vehiculos=turno.total_vehiculos,
+        incluido_en_cierre=turno.incluido_en_cierre,
+        estado=turno.estado,
+        observaciones=turno.observaciones,
+        created_at=turno.created_at,
+        access_token=nuevo_token,
+        token_type="bearer"
+    )
 

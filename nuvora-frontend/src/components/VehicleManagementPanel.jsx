@@ -1,8 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Car, LogIn, LogOut } from 'lucide-react';
 import { http } from '../api/http';
 
-export function VehicleManagementPanel({ onVehicleUpdate, onExitRegistered }) {
+export function VehicleManagementPanel({ onVehicleUpdate, onExitRegistered, placaSalidaInicial, onPlacaSalidaUsada }) {
   // Estados para entrada
   const [placaEntrada, setPlacaEntrada] = useState('');
   const [loadingEntrada, setLoadingEntrada] = useState(false);
@@ -13,6 +13,17 @@ export function VehicleManagementPanel({ onVehicleUpdate, onExitRegistered }) {
   const [loadingSalida, setLoadingSalida] = useState(false);
   const [messageSalida, setMessageSalida] = useState(null);
   const [ticketInfo, setTicketInfo] = useState(null);
+
+  // Cuando se recibe una placa inicial desde VehiculosPage
+  useEffect(() => {
+    if (placaSalidaInicial) {
+      setPlacaSalida(placaSalidaInicial);
+      // Notificar que ya usamos la placa
+      if (onPlacaSalidaUsada) {
+        onPlacaSalidaUsada();
+      }
+    }
+  }, [placaSalidaInicial, onPlacaSalidaUsada]);
 
   // Función para registrar entrada usando ticket_router
   const handleEntry = async (e) => {
@@ -194,6 +205,12 @@ export function VehicleManagementPanel({ onVehicleUpdate, onExitRegistered }) {
             <div className="mt-4 p-4 bg-white rounded-lg border border-gray-300">
               <h4 className="font-semibold text-gray-900 mb-3 text-sm">Resumen del Ticket</h4>
               <div className="space-y-2 text-xs">
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Placa:</span>
+                  <span className="font-mono font-bold text-gray-900 text-sm">
+                    {ticketInfo.placa}
+                  </span>
+                </div>
                 <div className="flex justify-between">
                   <span className="text-gray-600">Entrada:</span>
                   <span className="font-medium text-gray-900">
