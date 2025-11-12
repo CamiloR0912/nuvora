@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from config.db import SessionLocal
 from schema.ticket_schema import TicketEntrada, TicketSalidaPorPlaca, TicketResponse, TicketDetailResponse
+from schema.vehiculo_schema import VehiculoActivoResponse, VehiculoHistorialResponse, VehiculoBusquedaResponse
 from config.auth import get_current_user, require_admin
 from model.tickets import Ticket
 from model.vehiculos import Vehiculo

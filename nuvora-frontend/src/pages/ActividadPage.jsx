@@ -1,43 +1,48 @@
 import React, { useEffect, useState } from "react";
 import { Activity, ArrowUpCircle, ArrowDownCircle } from "lucide-react";
-import axios from "axios";
+import { http } from "../api/http";
 
 export default function ActividadPage() {
   const [eventos, setEventos] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    Promise.all([
-      axios.get('/api/vehiculos/activos'),
-      axios.get('/api/vehiculos/historial')
-    ])
-      .then(([activosRes, historialRes]) => {
-        const entradas = activosRes.data
-          .map((vehiculo) => ({
-            id: `entrada-${vehiculo.id}`,
+    // Usar endpoint de tickets en lugar de vehiculos
+    http.get('/tickets')
+      .then((response) => {
+        const todosLosTickets = response.data;
+
+        // Crear eventos de entrada (todos los tickets)
+        const entradas = todosLosTickets
+          .map((ticket) => ({
+            id: `entrada-${ticket.id}`,
             event_type: 'entry',
             event_data: {
-              description: `Vehículo ${vehiculo.placa} ingresó al parqueadero`
+              description: `Vehículo ${ticket.placa} ingresó al parqueadero`
             },
-            created_at: vehiculo.fecha_entrada
+            created_at: ticket.hora_entrada
           }));
 
-        const salidas = historialRes.data
-          .map((vehiculo) => ({
-            id: `salida-${vehiculo.id}`,
+        // Crear eventos de salida (solo tickets cerrados con hora_salida)
+        const salidas = todosLosTickets
+          .filter(ticket => ticket.estado === 'cerrado' && ticket.hora_salida)
+          .map((ticket) => ({
+            id: `salida-${ticket.id}`,
             event_type: 'exit',
             event_data: {
-              description: `Vehículo ${vehiculo.placa} salió del parqueadero`
+              description: `Vehículo ${ticket.placa} salió del parqueadero`
             },
-            created_at: vehiculo.fecha_salida
+            created_at: ticket.hora_salida
           }));
 
+        // Combinar y ordenar por fecha más reciente
         const ambos = [...entradas, ...salidas]
           .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
 
         setEventos(ambos);
       })
-      .catch(() => {
+      .catch((error) => {
+        console.error('Error al cargar tickets:', error);
         setEventos([]);
       })
       .finally(() => setLoading(false));
