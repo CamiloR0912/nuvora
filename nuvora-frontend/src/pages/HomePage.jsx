@@ -11,18 +11,10 @@ import { useSSE } from '../api/useSSE';
 import { http } from '../api/http';
 import { useLocation } from 'react-router-dom';
 
-// Simulación de cupos (sigue igual, puedes cambiar por tu backend real luego)
-const mockParkingSpaces = [
-  { id: 1, floor: 1, zone: 'A', space_number: 'A1', is_occupied: false },
-  { id: 2, floor: 1, zone: 'A', space_number: 'A2', is_occupied: true },
-  { id: 3, floor: 1, zone: 'B', space_number: 'B1', is_occupied: false },
-  { id: 4, floor: 2, zone: 'C', space_number: 'C1', is_occupied: true },
-  { id: 5, floor: 2, zone: 'C', space_number: 'C2', is_occupied: false },
-];
+const TOTAL_CUPOS = 30; // Cupos totales del parqueadero
 
 export default function HomePage() {
   const location = useLocation();
-  const [parkingSpaces, setParkingSpaces] = useState([]);
   const [vehicles, setVehicles] = useState([]);
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -163,16 +155,15 @@ export default function HomePage() {
   };
 
   useEffect(() => {
-    // Cargar cupos simulados y datos reales de vehículos/eventos
-    setParkingSpaces(mockParkingSpaces);
+    // Cargar datos reales de vehículos/eventos
     loadVehicleData();
     setLoading(false);
   }, []); // Removida la dependencia loadVehicleData para evitar re-renders infinitos
 
   const stats = {
-    totalSpaces: parkingSpaces.length,
-    occupiedSpaces: parkingSpaces.filter(s => s.is_occupied).length,
-    availableSpaces: parkingSpaces.filter(s => !s.is_occupied).length,
+    totalSpaces: TOTAL_CUPOS,
+    occupiedSpaces: vehicles.length, // Vehículos activos = cupos ocupados
+    availableSpaces: TOTAL_CUPOS - vehicles.length, // Cupos disponibles
     activeVehicles: vehicles.length,
   };
 
