@@ -4,12 +4,11 @@ import { ParkingSpaceGrid } from '../components/ParkingSpaceGrid';
 import { VehicleList } from '../components/VehicleList';
 import { RecentActivity } from '../components/RecentActivity';
 import Detection from '../components/Detection';
-import { Car, ParkingCircle, Clock, Mic } from 'lucide-react';
+import { Car, ParkingCircle, Clock, Mic, Pencil } from 'lucide-react';
 import { VoiceControlPanel } from '../components/VoiceControlPanel';
-import { VehicleManagementPanel } from '../components/VehicleManagementPanel';
 import { useSSE } from '../api/useSSE';
+// import axios from 'axios'; // eliminado: usamos instancia http
 import { http } from '../api/http';
-import { useLocation } from 'react-router-dom';
 
 // Simulación de cupos (sigue igual, puedes cambiar por tu backend real luego)
 const mockParkingSpaces = [
@@ -21,36 +20,21 @@ const mockParkingSpaces = [
 ];
 
 export default function HomePage() {
-  const location = useLocation();
   const [parkingSpaces, setParkingSpaces] = useState([]);
   const [vehicles, setVehicles] = useState([]);
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [totalCupos, setTotalCupos] = useState(0);
+  const [editing, setEditing] = useState(false);
+  const [newTotalCupos, setNewTotalCupos] = useState('');
+  const [savingTotal, setSavingTotal] = useState(false);
   
   // Estados para detecciones en tiempo real
   const [lastDetection, setLastDetection] = useState(null);
   const [recentDetections, setRecentDetections] = useState([]);
 
-  // Estado para la placa que viene desde VehiculosPage
-  const [placaSalidaInicial, setPlacaSalidaInicial] = useState(null);
-
   // Obtener token del localStorage
   const token = localStorage.getItem('token');
-
-  // Detectar si vienen con una placa para registrar salida
-  useEffect(() => {
-    if (location.state?.placaSalida) {
-      setPlacaSalidaInicial(location.state.placaSalida);
-      // Limpiar el state para que no se quede persistente
-      window.history.replaceState({}, document.title);
-    }
-  }, [location]);
-
-  // Callback para manejar respuestas de comandos de voz
-  const handleVoiceCommand = useCallback((voiceData) => {
-    console.log('🎤 Comando de voz recibido:', voiceData);
-    // Los comandos de voz ya no se agregan a la actividad reciente
-  }, []);
 
   // Callback para manejar mensajes SSE
   const handleSSEMessage = useCallback((data) => {
@@ -67,22 +51,9 @@ export default function HomePage() {
       // Agregar a detecciones recientes (máximo 5)
       setRecentDetections(prev => [detection, ...prev].slice(0, 5));
       
-      // Agregar evento a la actividad reciente
-      const detectionEvent = {
-        id: `detection-${Date.now()}`,
-        event_type: 'entry',
-        event_data: {
-          description: `Vehículo ${data.placa} detectado entrando`
-        },
-        created_at: new Date().toISOString()
-      };
-      
-      setEvents(prev => {
-        const allEvents = [detectionEvent, ...prev];
-        return allEvents
-          .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
-          .slice(0, 3);
-      });
+      // Opcional: Reproducir sonido de notificación
+      // const audio = new Audio('/notification.mp3');
+      // audio.play();
       
       console.log('🚗 Vehículo detectado:', detection);
     }
@@ -95,86 +66,83 @@ export default function HomePage() {
     token
   );
 
-  // Función para agregar evento de salida manualmente
-  const addExitEvent = useCallback((placa, ticketData) => {
-    const exitEvent = {
-      id: `salida-${Date.now()}`,
-      event_type: 'exit',
-      event_data: {
-        description: `Vehículo ${placa} salió del parqueadero`
-      },
-      created_at: ticketData.hora_salida || new Date().toISOString()
-    };
-    
-    setEvents(prev => {
-      const allEvents = [exitEvent, ...prev];
-      return allEvents
-        .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
-        .slice(0, 3);
-    });
-  }, []);
+  useEffect(() => {
+    // Cargar cupos simulados y datos reales de vehículos/eventos
+    Promise.all([
+      Promise.resolve(mockParkingSpaces),
+      http.get('/tickets/abiertos'),
+      http.get('/tickets/'),
+      http.get('/configuracion/')
+    ])
+      .then(([mockSpaces, activosRes, historialRes, configuracionRes]) => {
+        setParkingSpaces(mockSpaces);
 
-  // Función para recargar datos cuando se actualice un vehículo
-  const loadVehicleData = () => {
-    // Solo cargar tickets abiertos
-    http.get('/tickets/abiertos')
-      .then((response) => {
-        const ticketsAbiertos = response.data;
-        
-        // Mapear tickets abiertos a formato de vehículos
+        // Mapea vehículos activos según API real (tickets abiertos)
         setVehicles(
-          ticketsAbiertos.map(ticket => ({
-            id: ticket.id,
-            license_plate: ticket.placa,
-            entry_time: new Date(ticket.hora_entrada),
-            parking_spaces: { space_number: 'N/A' }
+          activosRes.data.map(v => ({
+            id: v.id,
+            license_plate: v.placa,
+            entry_time: new Date(v.hora_entrada),
+            parking_spaces: { space_number: v.espacio || 'Desconocido' }
           }))
         );
 
-        // Crear eventos de entradas (últimos 3 tickets abiertos)
-        const entradas = ticketsAbiertos
-          .sort((a, b) => new Date(b.hora_entrada) - new Date(a.hora_entrada))
-          .slice(0, 3)
-          .map(ticket => ({
-            id: `entrada-${ticket.id}`,
-            event_type: 'entry',
-            event_data: {
-              description: `Vehículo ${ticket.placa} ingresó al parqueadero`
-            },
-            created_at: ticket.hora_entrada
-          }));
+        // Entradas
+        const entradas = activosRes.data.map(v => ({
+          id: `entrada-${v.id}`,
+          event_type: 'entry',
+          event_data: {
+            description: `Vehículo ${v.placa} ingresó al parqueadero`
+          },
+          created_at: v.hora_entrada
+        }));
 
-        // Mantener eventos de detección y salida que ya están en el estado
-        setEvents(prevEvents => {
-          const deteccionesYSalidas = prevEvents.filter(e => 
-            e.event_type === 'exit' || e.id.startsWith('detection-')
-          );
-          const todosEventos = [...entradas, ...deteccionesYSalidas];
-          
-          return todosEventos
-            .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
-            .slice(0, 3);
-        });
+        // Salidas
+        const salidas = historialRes.data.map(v => ({
+          id: `salida-${v.id}`,
+          event_type: 'exit',
+          event_data: {
+            description: `Vehículo ${v.placa} salió del parqueadero`
+          },
+          created_at: v.hora_salida
+        }));
+
+        // Configuración
+        setTotalCupos(configuracionRes?.data?.total_cupos ?? 0);
+        setNewTotalCupos(String(configuracionRes?.data?.total_cupos ?? 0));
+
+        // Combinar y mostrar solo las 3 actividades más recientes
+        const ambos = [...entradas, ...salidas]
+          .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+          .slice(0, 3);
+
+        setEvents(ambos);
+        setLoading(false);
       })
-      .catch((error) => {
-        console.error('Error al cargar tickets:', error);
+      .catch(() => {
         setVehicles([]);
+        setEvents([]);
+        setLoading(false);
       });
-  };
+  }, []);
 
-  useEffect(() => {
-    // Cargar cupos simulados y datos reales de vehículos/eventos
-    setParkingSpaces(mockParkingSpaces);
-    loadVehicleData();
-    setLoading(false);
-  }, []); // Removida la dependencia loadVehicleData para evitar re-renders infinitos
+  const occupiedSpaces = vehicles.length; // número de vehículos activos
+  const availableSpaces = Math.max((totalCupos || 0) - occupiedSpaces, 0);
 
-  const stats = {
-    totalSpaces: parkingSpaces.length,
-    occupiedSpaces: parkingSpaces.filter(s => s.is_occupied).length,
-    availableSpaces: parkingSpaces.filter(s => !s.is_occupied).length,
-    activeVehicles: vehicles.length,
-  };
+  async function saveTotalCupos() {
+    try {
+      setSavingTotal(true);
+      const parsed = parseInt(newTotalCupos, 10);
+      if (isNaN(parsed) || parsed < 0) return;
+      const res = await http.put('/configuracion/', { total_cupos: parsed });
+      setTotalCupos(res?.data?.total_cupos ?? parsed);
+      setEditing(false);
+    } catch (e) {
+      console.error('Error actualizando total de cupos', e);
+    } finally {
+      setSavingTotal(false);
+    }
+  }
 
   if (loading) {
     return (
@@ -196,14 +164,40 @@ export default function HomePage() {
         </div>
       )}
       
-      {/* Tarjeta de cupos - ocupa todo el ancho */}
-      <div className="mb-6">
-        <StatCard 
-          title="Cupos" 
-          value={`${stats.occupiedSpaces}/${stats.totalSpaces}`} 
-          icon={ParkingCircle} 
-          subtitle={`${Math.round((stats.occupiedSpaces / stats.totalSpaces) * 100)}% ocupación`} 
-        />
+      {/* Tarjetas de estadísticas principales */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+        <div className="relative">
+          <StatCard title="Total de Cupos" value={totalCupos} icon={ParkingCircle} subtitle="Capacidad total" />
+          <div className="absolute top-3 right-3">
+            {!editing ? (
+              <button
+                className="px-3 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700"
+                onClick={() => setEditing(true)}
+              >Editar</button>
+            ) : (
+              <div className="flex items-center gap-2">
+                <input
+                  type="number"
+                  min="0"
+                  className="w-20 px-2 py-1 border rounded text-sm"
+                  value={newTotalCupos}
+                  onChange={(e) => setNewTotalCupos(e.target.value)}
+                />
+                <button
+                  className="px-3 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50"
+                  onClick={saveTotalCupos}
+                  disabled={savingTotal}
+                >Guardar</button>
+                <button
+                  className="px-3 py-1 text-xs bg-gray-200 text-gray-700 rounded hover:bg-gray-300"
+                  onClick={() => { setEditing(false); setNewTotalCupos(String(totalCupos)); }}
+                >Cancelar</button>
+              </div>
+            )}
+          </div>
+        </div>
+        <StatCard title="Cupos Ocupados" value={occupiedSpaces} icon={Car} subtitle={`${totalCupos ? Math.round((occupiedSpaces / totalCupos) * 100) : 0}% ocupación`} />
+        <StatCard title="Cupos Disponibles" value={availableSpaces} icon={ParkingCircle} subtitle="Listos para usar" />
       </div>
 
       {/* Aquí va el Detection, ocupa todo el ancho izquierdo del grid */}
@@ -216,18 +210,8 @@ export default function HomePage() {
         </div>
         <div className="flex flex-col space-y-6">
           <RecentActivity events={events} />
-          <VoiceControlPanel onCommandResponse={handleVoiceCommand} />
+          <VoiceControlPanel lastCommand={events.find(e => e.event_type === 'voice_command')?.event_data?.description ?? ''} />
         </div>
-      </div>
-
-      {/* Panel de gestión de vehículos */}
-      <div className="mb-8">
-        <VehicleManagementPanel 
-          onVehicleUpdate={loadVehicleData}
-          onExitRegistered={addExitEvent}
-          placaSalidaInicial={placaSalidaInicial}
-          onPlacaSalidaUsada={() => setPlacaSalidaInicial(null)}
-        />
       </div>
     </div>
   );

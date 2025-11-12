@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { Car, Clock, Plus, LogOut, X, Search } from "lucide-react";
 import { getVehiculosActivos, registrarEntrada, registrarSalida } from "../api/vehiculosApi";
-import { useNavigate } from "react-router-dom";
 
 function formatDuration(fecha_entrada) {
   const entryTime = new Date(fecha_entrada);
@@ -36,7 +35,6 @@ function Modal({ isOpen, onClose, title, children }) {
 }
 
 export default function VehiculosPage() {
-  const navigate = useNavigate();
   const [vehiculos, setVehiculos] = useState([]);
   const [vehiculosFiltrados, setVehiculosFiltrados] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
@@ -84,14 +82,8 @@ export default function VehiculosPage() {
             espacio: null, // No hay campo de espacio en tickets
             usuario_nombre: ticket.usuario_entrada_nombre // Nombre del usuario que registró la entrada
           }));
-          
-          // Ordenar del más reciente al más antiguo
-          const vehiculosOrdenados = vehiculosFormateados.sort((a, b) => 
-            new Date(b.fecha_entrada) - new Date(a.fecha_entrada)
-          );
-          
-          setVehiculos(vehiculosOrdenados);
-          setVehiculosFiltrados(vehiculosOrdenados);
+          setVehiculos(vehiculosFormateados);
+          setVehiculosFiltrados(vehiculosFormateados);
         } else {
           setVehiculos([]);
           setVehiculosFiltrados([]);
@@ -169,9 +161,23 @@ export default function VehiculosPage() {
 };
 
   // Registrar salida directa desde el botón del vehículo
-  const handleSalidaDirecta = (placa) => {
-    // Navegar a HomePage con la placa en el state
-    navigate('/dashboard', { state: { placaSalida: placa } });
+  const handleSalidaDirecta = async (placa) => {
+    if (!confirm(`¿Confirmar salida del vehículo ${placa}?`)) {
+      return;
+    }
+
+    const payload = { placa };
+    console.log("📤 [VehiculosPage] Salida directa:", payload);
+
+    try {
+      const res = await registrarSalida(payload);
+      console.log("✅ [VehiculosPage] Salida registrada:", res.data);
+      cargarVehiculos(); // Recargar lista
+    } catch (err) {
+      console.error("❌ [VehiculosPage] Error en salida directa:", err);
+      const msg = err.response?.data?.detail || "Error al registrar salida";
+      alert(msg);
+    }
   };
 
   return (

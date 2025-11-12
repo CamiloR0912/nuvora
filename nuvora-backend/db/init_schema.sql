@@ -78,6 +78,13 @@ CREATE TABLE IF NOT EXISTS cierres_caja (
   CONSTRAINT fk_cierres_turno FOREIGN KEY (turno_id) REFERENCES turnos(id) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+-- Tabla configuracion (capacidad de parqueo)
+CREATE TABLE IF NOT EXISTS configuracion (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  total_cupos INT NOT NULL DEFAULT 0,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 SET FOREIGN_KEY_CHECKS = 1;
 
 -- Ejemplo de usuario administrador (contraseña de ejemplo: 'admin' — reemplazar en producción)

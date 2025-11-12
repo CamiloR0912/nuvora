@@ -13,8 +13,8 @@ def login_and_get_token(username: str, password: str) -> str:
     print(f"🔐 Iniciando sesión como: {username}")
     
     response = requests.post(
-        f"{BACKEND_URL}/api/users/login",
-        json={
+        f"{BACKEND_URL}/users/login",
+        data={
             "username": username,
             "password": password
         }

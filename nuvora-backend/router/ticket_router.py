@@ -2,7 +2,6 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from config.db import SessionLocal
 from schema.ticket_schema import TicketEntrada, TicketSalidaPorPlaca, TicketResponse, TicketDetailResponse
-from schema.vehiculo_schema import VehiculoActivoResponse, VehiculoHistorialResponse, VehiculoBusquedaResponse
 from config.auth import get_current_user, require_admin
 from model.tickets import Ticket
 from model.vehiculos import Vehiculo
@@ -120,7 +119,7 @@ def entrada_ticket(data: TicketEntrada, db: Session = Depends(get_db), current_u
     db.refresh(nuevo)
     return nuevo
 
-@ticket_router.post("/salida", response_model=TicketDetailResponse)
+@ticket_router.post("/salida", response_model=TicketResponse)
 def salida_ticket(data: TicketSalidaPorPlaca, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """
     Registra la salida de un vehículo buscando por placa.
@@ -170,22 +169,7 @@ def salida_ticket(data: TicketSalidaPorPlaca, db: Session = Depends(get_db), cur
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Error al cerrar el ticket: {str(e)}")
     
-    # Retornar con información detallada incluyendo la placa
-    return TicketDetailResponse(
-        id=ticket.id,
-        vehiculo_id=ticket.vehiculo_id,
-        turno_id=ticket.turno_id,
-        turno_cierre_id=ticket.turno_cierre_id,
-        hora_entrada=ticket.hora_entrada,
-        hora_salida=ticket.hora_salida,
-        monto_total=ticket.monto_total,
-        estado=ticket.estado,
-        placa=veh.placa,
-        cliente_nombre=None,
-        cliente_telefono=None,
-        cliente_email=None,
-        usuario_entrada_nombre=None
-    )
+    return ticket
 
 
 @ticket_router.get("/", response_model=List[TicketDetailResponse])
@@ -208,9 +192,7 @@ def listar_tickets(db: Session = Depends(get_db), current_user: User = Depends(g
 		if not turno_activo:
 			return []  # Si no tiene turno activo, retorna lista vacía
 		
-		tickets = db.query(Ticket).filter(
-			(Ticket.turno_id == turno_activo.id) | (Ticket.turno_cierre_id == turno_activo.id)
-		).all()
+		tickets = db.query(Ticket).filter(Ticket.turno_id == turno_activo.id).all()
 	
 	# Enriquecer con datos del vehículo y usuario
 	tickets_detallados = []
@@ -255,61 +237,6 @@ def listar_tickets_abiertos(db: Session = Depends(get_db), current_user: User = 
 	"""
 	return obtener_tickets_abiertos_con_detalles(db, current_user)
 
-
-@ticket_router.get("/cerrados", response_model=List[TicketDetailResponse])
-def listar_tickets_cerrados(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-	"""
-	Lista los tickets CERRADOS del turno ACTUAL del usuario.
-	Solo muestra tickets que el usuario cerró en su turno abierto actual.
-	"""
-	# Buscar el turno abierto actual del usuario
-	turno_activo = db.query(Turno).filter(
-		Turno.usuario_id == current_user.id,
-		Turno.estado == 'abierto'
-	).first()
-	
-	if not turno_activo:
-		return []  # Si no tiene turno activo, retorna lista vacía
-	
-	# Obtener tickets cerrados donde turno_cierre_id es el turno actual
-	tickets = db.query(Ticket).filter(
-		Ticket.estado == 'cerrado',
-		Ticket.turno_cierre_id == turno_activo.id
-	).order_by(Ticket.hora_salida.desc()).all()
-	
-	# Enriquecer con datos del vehículo y usuario
-	tickets_detallados = []
-	for ticket in tickets:
-		vehiculo = db.query(Vehiculo).filter(Vehiculo.id == ticket.vehiculo_id).first()
-		placa = vehiculo.placa if vehiculo else None
-		
-		# Obtener el nombre del usuario que creó el ticket (del turno de entrada)
-		usuario_nombre = None
-		if ticket.turno_id:
-			turno = db.query(Turno).filter(Turno.id == ticket.turno_id).first()
-			if turno and turno.usuario_id:
-				usuario = db.query(User).filter(User.id == turno.usuario_id).first()
-				if usuario:
-					usuario_nombre = usuario.nombre
-		
-		ticket_detallado = TicketDetailResponse(
-			id=ticket.id,
-			vehiculo_id=ticket.vehiculo_id,
-			turno_id=ticket.turno_id,
-			turno_cierre_id=ticket.turno_cierre_id,
-			hora_entrada=ticket.hora_entrada,
-			hora_salida=ticket.hora_salida,
-			monto_total=ticket.monto_total,
-			estado=ticket.estado,
-			placa=placa,
-			cliente_nombre=None,
-			cliente_telefono=None,
-			cliente_email=None,
-			usuario_entrada_nombre=usuario_nombre
-		)
-		tickets_detallados.append(ticket_detallado)
-	
-	return tickets_detallados
 
 
 @ticket_router.get("/buscar-placa/{placa}", response_model=TicketDetailResponse)

@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, ForeignKey, DateTime, DECIMAL, Enum, Text, Boolean
+from sqlalchemy import Column, Integer, ForeignKey, DateTime, DECIMAL, Enum, Text
 from sqlalchemy.sql import func
 from config.db import Base
 
@@ -14,8 +14,6 @@ class Turno(Base):
 	fecha_fin = Column(DateTime(timezone=False), nullable=True)
 	monto_inicial = Column(DECIMAL(10,2), nullable=False, default=0.00)
 	monto_total = Column(DECIMAL(10,2), nullable=True)
-	total_vehiculos = Column(Integer, nullable=False, default=0)
-	incluido_en_cierre = Column(Boolean, nullable=False, default=False)
 	estado = Column(Enum(*TURN_STATE, name='turno_estado'), nullable=False, default='abierto')
 	observaciones = Column(Text, nullable=True)
 	created_at = Column(DateTime(timezone=False), server_default=func.now(), nullable=False)

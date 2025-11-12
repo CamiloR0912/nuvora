@@ -111,15 +111,6 @@ class BackendClient:
         result = self._make_request("GET", "/api/tickets/abiertos", user_jwt=user_jwt)
         return result if result else []
     
-    def get_my_closed_tickets(self, user_jwt: str) -> Optional[list]:
-        """
-        Obtiene solo los tickets cerrados del usuario autenticado.
-        Usa el endpoint /cerrados que filtra por turno_cierre_id (tickets que el usuario cerró).
-        Requiere JWT del usuario.
-        """
-        result = self._make_request("GET", "/api/tickets/cerrados", user_jwt=user_jwt)
-        return result if result else []
-    
     def search_ticket_by_plate(self, placa: str, user_jwt: str) -> Optional[Dict[Any, Any]]:
         """
         Busca un ticket abierto por placa en los turnos del usuario.
