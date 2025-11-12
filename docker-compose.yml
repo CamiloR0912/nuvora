@@ -23,6 +23,7 @@ services:
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.backend-nuvora.rule=Host(`nuvora`) && PathPrefix(`/api`)"
+      - "traefik.http.routers.backend-nuvora.priority=100"
       - "traefik.http.routers.backend-nuvora.entrypoints=websecure"
       - "traefik.http.routers.backend-nuvora.tls=true"
       - "traefik.http.services.backend.loadbalancer.server.port=8000"
@@ -43,6 +44,7 @@ services:
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.frontend.rule=Host(`nuvora`)"
+      - "traefik.http.routers.frontend.priority=1"
       - "traefik.http.routers.frontend.entrypoints=websecure"
       - "traefik.http.routers.frontend.tls=true"
       - "traefik.http.services.frontend.loadbalancer.server.port=5173"

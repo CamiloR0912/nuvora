@@ -6,6 +6,9 @@ import VehiculosPage from './pages/VehiculosPage';
 import BaseDatosPage from './pages/BaseDatosPage';
 import TurnosPage from './pages/TurnosPage';
 import CerrarTurnoPage from './pages/CerrarTurnoPage';
+import HacerCierrePage from './pages/HacerCierrePage';
+import CierresPage from './pages/CierresPage';
+import UsuariosPage from './pages/UsuariosPage';
 import DashboardLayout from './layouts/DashboardLayout';
 
 function RequireAuth({ children }) {
@@ -39,6 +42,9 @@ function App() {
           <Route path="bd" element={<BaseDatosPage />} />
           <Route path="turnos" element={<TurnosPage />} />
           <Route path="cerrar-turno" element={<CerrarTurnoPage />} />
+          <Route path="hacer-cierre" element={<HacerCierrePage />} />
+          <Route path="cierres" element={<CierresPage />} />
+          <Route path="usuarios" element={<UsuariosPage />} />
         </Route>
 
         {/* Redirección por defecto */}

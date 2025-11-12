@@ -103,9 +103,10 @@ def crear_cierre(payload: CierreCreate, db: Session = Depends(get_db), current_u
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Error al crear cierre: {str(e)}")
 
-    # Crear nuevo token SIN turno_id (solo con user_id)
+    # Crear nuevo token SIN turno_id (solo con user_id y rol)
     nuevo_token = create_access_token({
-        "sub": str(current_user.id)
+        "sub": str(current_user.id),
+        "rol": current_user.rol
     })
 
     # Retornar cierre con el nuevo token

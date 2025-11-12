@@ -75,12 +75,40 @@ def create_user(data: UserCreate, db: Session = Depends(get_db), admin: User = D
     return new_user
 
 
-# 5️⃣ Login con creación automática de turno
+# 5️⃣ Habilitar/Deshabilitar usuario (solo admins)
+@user.patch("/{user_id}/toggle-status")
+def toggle_user_status(user_id: int, db: Session = Depends(get_db), admin: User = Depends(require_admin)):
+    usuario = db.query(User).filter(User.id == user_id).first()
+    if not usuario:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+    
+    # No permitir deshabilitar al propio usuario admin
+    if usuario.id == admin.id:
+        raise HTTPException(status_code=400, detail="No puedes deshabilitarte a ti mismo")
+    
+    usuario.activo = not usuario.activo
+    db.commit()
+    db.refresh(usuario)
+    return {
+        "id": usuario.id,
+        "nombre": usuario.nombre,
+        "usuario": usuario.usuario,
+        "rol": usuario.rol,
+        "activo": usuario.activo,
+        "mensaje": f"Usuario {'habilitado' if usuario.activo else 'deshabilitado'} exitosamente"
+    }
+
+
+# 6️⃣ Login con creación automática de turno
 @user.post("/login")
 def login(credentials: LoginRequest, db: Session = Depends(get_db)):
     usuario_db = db.query(User).filter(User.usuario == credentials.username).first()
     if not usuario_db or not check_password_hash(usuario_db.password_hash, credentials.password):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Credenciales inválidas")
+    
+    # Verificar si el usuario está activo
+    if not usuario_db.activo:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Usuario deshabilitado")
     
     # Buscar turno activo del usuario
     from model.turnos import Turno
@@ -89,8 +117,11 @@ def login(credentials: LoginRequest, db: Session = Depends(get_db)):
         Turno.estado == 'abierto'
     ).first()
     
-    # Crear token con user_id y turno_id (si existe)
-    token_data = {"sub": str(usuario_db.id)}
+    # Crear token con user_id, rol y turno_id (si existe)
+    token_data = {
+        "sub": str(usuario_db.id),
+        "rol": usuario_db.rol
+    }
     if turno_activo:
         token_data["turno_id"] = turno_activo.id
     

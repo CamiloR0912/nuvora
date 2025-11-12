@@ -1,8 +1,9 @@
 import {
-  LayoutDashboard, Car, Activity, Database, LogOut, ChevronDown, Clock, CheckCircle, List
+  LayoutDashboard, Car, Activity, Database, LogOut, ChevronDown, Clock, CheckCircle, List, DollarSign, FileBarChart, Users
 } from 'lucide-react';
 import { NavLink, useNavigate } from 'react-router-dom';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { jwtDecode } from 'jwt-decode';
 
 const navItems = [
   { label: "Dashboard", path: "/dashboard", icon: LayoutDashboard },
@@ -15,12 +16,43 @@ const navItems = [
       { label: "Cerrar Mi Turno", path: "/dashboard/cerrar-turno", icon: CheckCircle },
     ]
   },
+  { 
+    label: "Cierres", 
+    icon: DollarSign,
+    subItems: [
+      { label: "Hacer Cierre", path: "/dashboard/hacer-cierre", icon: DollarSign },
+      { label: "Historial Cierres", path: "/dashboard/cierres", icon: FileBarChart, adminOnly: true },
+    ]
+  },
+  { label: "Usuarios", path: "/dashboard/usuarios", icon: Users, adminOnly: true },
 ];
 
 export default function Sidebar() {
   const navigate = useNavigate();
   const [openMenu, setOpenMenu] = useState(false);
   const [openSubMenu, setOpenSubMenu] = useState({});
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  useEffect(() => {
+    // Verificar si el usuario es admin
+    const token = localStorage.getItem('token');
+    if (token) {
+      try {
+        const decoded = jwtDecode(token);
+        console.log('🔍 Token decoded:', decoded);
+        
+        // El rol puede estar en decoded.rol O en decoded.usuario.rol
+        const userRole = decoded.rol || decoded.usuario?.rol || 'user';
+        console.log('👤 User role:', userRole);
+        
+        setIsAdmin(userRole === 'admin');
+        console.log('🔐 Is admin:', userRole === 'admin');
+      } catch (error) {
+        console.error('❌ Error decodificando token:', error);
+        setIsAdmin(false);
+      }
+    }
+  }, []);
 
   const toggleSubMenu = (label) => {
     setOpenSubMenu(prev => ({
@@ -73,7 +105,9 @@ export default function Sidebar() {
 
       <nav className="flex-1 px-3 py-6">
         <ul className="space-y-2">
-          {navItems.map(({ label, path, icon: Icon, subItems }) => (
+          {navItems
+            .filter(item => !item.adminOnly || isAdmin) // Filtrar items principales solo para admin
+            .map(({ label, path, icon: Icon, subItems }) => (
             <li key={label}>
               {subItems ? (
                 // Menú con subítems
@@ -92,7 +126,9 @@ export default function Sidebar() {
                   </button>
                   {openSubMenu[label] && (
                     <ul className="ml-8 mt-2 space-y-1">
-                      {subItems.map(({ label: subLabel, path: subPath, icon: SubIcon }) => (
+                      {subItems
+                        .filter(subItem => !subItem.adminOnly || isAdmin) // Filtrar items solo para admin
+                        .map(({ label: subLabel, path: subPath, icon: SubIcon }) => (
                         <li key={subLabel}>
                           <NavLink
                             to={subPath}

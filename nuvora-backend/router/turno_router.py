@@ -59,6 +59,7 @@ def iniciar_turno(
 	# Crear nuevo token con turno_id
 	nuevo_token = create_access_token({
 		"sub": str(current_user.id),
+		"rol": current_user.rol,
 		"turno_id": nuevo_turno.id
 	})
 	
@@ -213,9 +214,10 @@ def cerrar_mi_turno(db: Session = Depends(get_db), current_user: User = Depends(
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Error al cerrar turno: {str(e)}")
     
-    # Crear nuevo token SIN turno_id (solo con user_id)
+    # Crear nuevo token SIN turno_id (solo con user_id y rol)
     nuevo_token = create_access_token({
-        "sub": str(current_user.id)
+        "sub": str(current_user.id),
+        "rol": current_user.rol
     })
     
     # Retornar turno cerrado con el nuevo token

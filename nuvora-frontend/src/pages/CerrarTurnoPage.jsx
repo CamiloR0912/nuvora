@@ -173,19 +173,6 @@ export default function CerrarTurnoPage() {
           </div>
         )}
 
-        <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-6">
-          <div className="flex items-start">
-            <AlertCircle className="w-5 h-5 text-yellow-600 mt-0.5 mr-3" />
-            <div>
-              <h3 className="font-semibold text-yellow-900 mb-1">Importante</h3>
-              <p className="text-sm text-yellow-800">
-                Al cerrar el turno se calcularán automáticamente el total recaudado y la cantidad de vehículos atendidos. 
-                Esta acción no se puede deshacer.
-              </p>
-            </div>
-          </div>
-        </div>
-
         <div className="flex gap-4">
           <button
             onClick={() => navigate("/dashboard")}
